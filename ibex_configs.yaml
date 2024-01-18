@@ -20,6 +20,7 @@ small:
   RV32E                    : 0
   RV32M                    : "ibex_pkg::RV32MFast"
   RV32B                    : "ibex_pkg::RV32BNone"
+  RV32P                    : "ibex_pkg::RV32ZpnNone"
   RegFile                  : "ibex_pkg::RegFileFF"
   BranchTargetALU          : 0
   WritebackStage           : 0
@@ -35,6 +36,27 @@ small:
   MHPMCounterNum           : 0
   MHPMCounterWidth         : 40
 
+experimental-pext-small:
+  RV32E                    : 0
+  RV32M                    : "ibex_pkg::RV32MFast"
+  RV32B                    : "ibex_pkg::RV32BNone"
+  RV32P                    : "ibex_pkg::RV32Zpn"
+  RegFile                  : "ibex_pkg::RegFileFF"
+  BranchTargetALU          : 0
+  WritebackStage           : 0
+  ICache                   : 0
+  ICacheECC                : 0
+  ICacheScramble           : 0
+  BranchPredictor          : 0
+  DbgTriggerEn             : 0
+  SecureIbex               : 0
+  PMPEnable                : 0
+  PMPGranularity           : 0
+  PMPNumRegions            : 4
+  MHPMCounterNum           : 0
+  MHPMCounterWidth         : 40
+
+# TODO: add p-ext to other configurations as well 
 # Configuration to match that used in the OpenTitan project
 opentitan:
   RV32E                    : 0

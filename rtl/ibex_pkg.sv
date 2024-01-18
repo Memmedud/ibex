@@ -52,6 +52,29 @@ package ibex_pkg;
     RV32BFull       = 3
   } rv32b_e;
 
+  typedef enum integer {
+    RV32PNone       = 0,
+    RV32PZpn        = 1
+  } rv32p_e
+
+  ///////////////////////
+  // Adder split types //
+  ///////////////////////
+  typedef enum integer {
+    WIDTH32         = 0,
+    WIDTH16         = 1,
+    WIDTH8          = 2
+  } alusplit_e
+
+  /////////////////////////
+  // Pext overflow types //
+  /////////////////////////
+  typedef enum integer {
+    NONE            = 0,
+    HALVING         = 1,
+    SATURATING      = 2
+  } overflow_e
+
   /////////////
   // Opcodes //
   /////////////
@@ -67,7 +90,8 @@ package ibex_pkg;
     OPCODE_BRANCH   = 7'h63,
     OPCODE_JALR     = 7'h67,
     OPCODE_JAL      = 7'h6f,
-    OPCODE_SYSTEM   = 7'h73
+    OPCODE_SYSTEM   = 7'h73,
+    OPCODE_P        = 7'h77
   } opcode_e;
 
 
@@ -84,6 +108,7 @@ package ibex_pkg;
     ALU_XOR,
     ALU_OR,
     ALU_AND,
+
     // RV32B
     ALU_XNOR,
     ALU_ORN,
@@ -93,6 +118,7 @@ package ibex_pkg;
     ALU_SRA,
     ALU_SRL,
     ALU_SLL,
+
     // RV32B
     ALU_SRO,
     ALU_SLO,
@@ -119,6 +145,7 @@ package ibex_pkg;
     ALU_GEU,
     ALU_EQ,
     ALU_NE,
+
     // RV32B
     ALU_MIN,
     ALU_MINU,
@@ -181,7 +208,39 @@ package ibex_pkg;
     ALU_CRC32_H,
     ALU_CRC32C_H,
     ALU_CRC32_W,
-    ALU_CRC32C_W
+    ALU_CRC32C_W,
+
+    // Zpn extension
+    // Add 16-bit
+    ZPN_ADD16,
+    ZPN_UKADD16,
+    ZPN_URADD16,
+    ZPN_KADD16,
+    ZPN_RADD16,
+
+    // Add 8-bit
+    ZPN_ADD8,
+    ZPN_UKADD8,
+    ZPN_URADD8,
+    ZPN_KADD8,
+    ZPN_RADD8,
+
+    // Sub 16-bit
+    ZPN_SUB16,
+    ZPN_UKSUB16,
+    ZPN_URSUB16,
+    ZPN_KSUB16,
+    ZPN_RSUB16,    
+
+    // Sub 8-bit
+    ZPN_SUB8,
+    ZPN_UKSUB8,
+    ZPN_URSUB8,
+    ZPN_KSUB8,
+    ZPN_RSUB8
+
+    // TODO: Add moooore instructions   
+
   } alu_op_e;
 
   typedef enum logic [1:0] {

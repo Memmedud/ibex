@@ -11,6 +11,7 @@
 module ibex_ex_block #(
   parameter ibex_pkg::rv32m_e RV32M           = ibex_pkg::RV32MFast,
   parameter ibex_pkg::rv32b_e RV32B           = ibex_pkg::RV32BNone,
+  parameter ibex_pkg::rv32p_e RV32P           = ibex_pkg::RV32PNone,
   parameter bit               BranchTargetALU = 0
 ) (
   input  logic                  clk_i,
@@ -114,7 +115,8 @@ module ibex_ex_block #(
   /////////
 
   ibex_alu #(
-    .RV32B(RV32B)
+    .RV32B(RV32B),
+    .RV32P(RV32P)
   ) alu_i (
     .operator_i         (alu_operator_i),
     .operand_a_i        (alu_operand_a_i),
