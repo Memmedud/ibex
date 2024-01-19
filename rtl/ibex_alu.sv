@@ -7,7 +7,8 @@
  * Arithmetic logic unit
  */
 module ibex_alu #(
-  parameter ibex_pkg::rv32b_e RV32B = ibex_pkg::RV32BNone
+  parameter ibex_pkg::rv32b_e RV32B = ibex_pkg::RV32BNone,
+  parameter ibex_pkg::rv32p_e RV32P = ibex_pkg::RV32PNone
 ) (
   input  ibex_pkg::alu_op_e operator_i,
   input  logic [31:0]       operand_a_i,
@@ -102,11 +103,29 @@ module ibex_alu #(
   end
 
   // actual adder
-  assign adder_result_ext_o = $unsigned(adder_in_a) + $unsigned(adder_in_b);
+  if (RV32P == RV32PNone) begin
+    assign adder_result_ext_o = $unsigned(adder_in_a) + $unsigned(adder_in_b);
 
-  assign adder_result       = adder_result_ext_o[32:1];
+    assign adder_result       = adder_result_ext_o[32:1];
 
-  assign adder_result_o     = adder_result;
+    assign adder_result_o     = adder_result;
+  end
+  else begin
+    // Instansiate a special adder if P-ext is enabled
+    ibex_adder adder_i (
+      .operator_i         (operator_i),
+      .adder_in_a_i       (adder_in_a),
+      .adder_in_b_i       (adder_in_b),
+      .adder_result_o     (adder_result_o),
+      .adder_result_ext_o (adder_result_ext_o)
+    );
+  end
+
+  ///////////////
+  // SUNPKD8XY //
+  ///////////////
+  // ....
+
 
   ////////////////
   // Comparison //

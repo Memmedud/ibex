@@ -237,7 +237,11 @@ package ibex_pkg;
     ZPN_UKSUB8,
     ZPN_URSUB8,
     ZPN_KSUB8,
-    ZPN_RSUB8
+    ZPN_RSUB8,
+
+    // Unpack instructions
+    ONEOP,    // SUNPKD8XY + some other stuff
+    ONEOP2    // Bit-counting
 
     // TODO: Add moooore instructions   
 
