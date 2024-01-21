@@ -5,6 +5,7 @@ ibex:
   ]
   files: [
     rtl/ibex_pkg.sv,
+    rtl/ibex_adder.sv,
     rtl/ibex_alu.sv,
     rtl/ibex_compressed_decoder.sv,
     rtl/ibex_controller.sv,

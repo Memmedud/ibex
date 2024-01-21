@@ -55,7 +55,7 @@ package ibex_pkg;
   typedef enum integer {
     RV32PNone       = 0,
     RV32PZpn        = 1
-  } rv32p_e
+  } rv32p_e;
 
   ///////////////////////
   // Adder split types //
@@ -64,7 +64,7 @@ package ibex_pkg;
     WIDTH32         = 0,
     WIDTH16         = 1,
     WIDTH8          = 2
-  } alusplit_e
+  } aluwidth_e;
 
   /////////////////////////
   // Pext overflow types //
@@ -73,7 +73,7 @@ package ibex_pkg;
     NONE            = 0,
     HALVING         = 1,
     SATURATING      = 2
-  } overflow_e
+  } overflow_e;
 
   /////////////
   // Opcodes //

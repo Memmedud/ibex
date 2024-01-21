@@ -14,7 +14,7 @@
   `define RV32B ibex_pkg::RV32BNone
 `endif
 
-`ifdef RV32P
+`ifndef RV32P
   `define RV32P ibex_pkg::RV32PNone
 `endif
 
