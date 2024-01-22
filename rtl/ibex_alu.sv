@@ -116,9 +116,12 @@ module ibex_alu #(
       .operator_i         (operator_i),
       .adder_in_a_i       (adder_in_a),
       .adder_in_b_i       (adder_in_b),
-      .adder_result_o     (adder_result_o),
       .adder_result_ext_o (adder_result_ext_o)
     );
+
+      assign adder_result       = adder_result_ext_o[32:1];
+
+      assign adder_result_o     = adder_result;
   end
 
   ///////////////

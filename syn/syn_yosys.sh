@@ -79,6 +79,7 @@ done
 
 # remove tracer (not needed for synthesis)
 rm -f "$LR_SYNTH_OUT_DIR"/generated/ibex_tracer.v
+rm -f "$LR_SYNTH_OUT_DIR"/generated/ibex_top_tracing.v
 
 # remove the FPGA & register-based register file (because we will use the
 # latch-based one instead)

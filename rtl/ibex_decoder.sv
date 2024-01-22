@@ -1142,36 +1142,36 @@ module ibex_decoder #(
           3'b000: begin
             unique case (instr_alu[31:25])
               // Add 16 instructions
-              7'b01000000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_ADD16;
-              7'b00110000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKADD16;
-              7'b00100000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URADD16;
-              7'b00010000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KADD16;
-              7'b00000000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RADD16;
+              7'b010_0000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_ADD16;
+              7'b001_1000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKADD16;
+              7'b001_0000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URADD16;
+              7'b000_1000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KADD16;
+              7'b000_0000: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RADD16;
               
               // Sub 16 instructions
-              7'b01000001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_SUB16;
-              7'b00110001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKSUB16;
-              7'b00100001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URSUB16;
-              7'b00010001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KSUB16;
-              7'b00000001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RSUB16;
+              7'b010_0001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_SUB16;
+              7'b001_1001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKSUB16;
+              7'b001_0001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URSUB16;
+              7'b000_1001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KSUB16;
+              7'b000_0001: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RSUB16;
               
               // Add 8 instructions
-              7'b01000100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_ADD8;
-              7'b00110100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKADD8;
-              7'b00100100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URADD8;
-              7'b00010100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KADD8;
-              7'b00000100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RADD8;
+              7'b010_0100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_ADD8;
+              7'b001_1100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKADD8;
+              7'b001_0100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URADD8;
+              7'b000_1100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KADD8;
+              7'b000_0100: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RADD8;
               
               // Sub 8 instructions
-              7'b01000101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_SUB8;
-              7'b00110101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKSUB8;
-              7'b00100101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URSUB8;
-              7'b00010101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KSUB8;
-              7'b00000101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RSUB8;
+              7'b010_0101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_SUB8;
+              7'b001_1101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_UKSUB8;
+              7'b001_0101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_URSUB8;
+              7'b000_1101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_KSUB8;
+              7'b000_0101: if (RV32P == RV32PZpn) alu_operator_o = ZPN_RSUB8;
 
               // One-operand instructions
-              7'b1010110: if (RV32P == RV32PZpn) alu_operator_o = ONEOP;
-              7'b1010111: if (RV32P == RV32PZpn) alu_operator_o = ONEOP2;
+              7'b101_0110: if (RV32P == RV32PZpn) alu_operator_o = ONEOP;
+              7'b101_0111: if (RV32P == RV32PZpn) alu_operator_o = ONEOP2;
 
               default: ;
             endcase

@@ -28,6 +28,8 @@ yosys "chparam -set RV32B $lr_synth_ibex_bitmanip $lr_synth_top_module"
 
 yosys "chparam -set RV32M $lr_synth_ibex_multiplier $lr_synth_top_module"
 
+yosys "chparam -set RV32P $lr_synth_ibex_pext $lr_synth_top_module"
+
 yosys "chparam -set RegFile $lr_synth_ibex_regfile $lr_synth_top_module"
 
 yosys "synth $flatten_opt -top $lr_synth_top_module"
