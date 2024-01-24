@@ -103,31 +103,11 @@ module ibex_alu #(
   end
 
   // actual adder
-  if (RV32P == RV32PNone) begin
-    assign adder_result_ext_o = $unsigned(adder_in_a) + $unsigned(adder_in_b);
+  assign adder_result_ext_o = $unsigned(adder_in_a) + $unsigned(adder_in_b);
 
-    assign adder_result       = adder_result_ext_o[32:1];
+  assign adder_result       = adder_result_ext_o[32:1];
 
-    assign adder_result_o     = adder_result;
-  end
-  else begin
-    // Instansiate a special adder if P-ext is enabled
-    ibex_adder adder_i (
-      .operator_i         (operator_i),
-      .adder_in_a_i       (adder_in_a),
-      .adder_in_b_i       (adder_in_b),
-      .adder_result_ext_o (adder_result_ext_o)
-    );
-
-      assign adder_result       = adder_result_ext_o[32:1];
-
-      assign adder_result_o     = adder_result;
-  end
-
-  ///////////////
-  // SUNPKD8XY //
-  ///////////////
-  // ....
+  assign adder_result_o     = adder_result;
 
 
   ////////////////
@@ -1411,6 +1391,9 @@ module ibex_alu #(
       // Carry-less Multiply Operations (RV32B)
       ALU_CLMUL, ALU_CLMULR,
       ALU_CLMULH: result_o = clmul_result;
+
+      // P-ext ALU output
+      ZPN_INSTR:  result_o = zpn_result;
 
       default: ;
     endcase

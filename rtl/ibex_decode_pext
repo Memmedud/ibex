@@ -1,0 +1,62 @@
+
+
+
+
+ibex_pkg_pext::signed_type_e signed_operands; 
+
+  // Decode instruction width
+  always_comb begin
+    unique case (operator_i)
+      // TODO: Fix this!!!
+      ZPN_RADD16,   ZPN_KADD16,
+      ZPN_RSUB16,   ZPN_KSUB16,
+      ZPN_SMIN16,   ZPN_SMAX16,   
+      ZPN_SCMPLT16, ZPN_SCMPLE16: signed_operands = S16;
+
+      ZPN_UKADD16,  
+      ZPN_UKSUB16,  ZPN_SUB16, 
+      ZPN_URSUB16,  ZPN_CMPEQ16,  
+      ZPN_UCMPLT16, ZPN_UCMPLE16, 
+      ZPN_UMIN16,   ZPN_UMAX16:   signed_operands = U16;   
+      
+      ZPN_RSUB8,    ZPN_KSUB8,
+      ZPN_SMIN8,    ZPN_SMAX8,
+      ZPN_SCMPLT8,  ZPN_SCMPLE8:  signed_operands = S8;
+
+      ZPN_UKSUB8,   ZPN_SUB8,
+      ZPN_URSUB8,   ZPN_CMPEQ8,   
+      ZPN_UCMPLT8,  ZPN_UCMPLE8,
+      ZPN_UMIN8,    ZPN_UMAX8:    signed_operands = U8;
+
+      default: ;
+    endcase
+  end
+
+  // Decode instructions that use subtraction
+  // TODO: Move this to decoder file??
+  logic sub;
+  always_comb begin
+    unique case (operator_i)
+      // Subtraction ops
+      ZPN_RSUB16,   ZPN_RSUB8,
+      ZPN_KSUB16,   ZPN_KSUB8,
+      ZPN_URSUB16,  ZPN_UKSUB8,
+      ZPN_UKSUB16,  ZPN_UKSUB8,
+      ZPN_SUB16,    ZPN_SUB8,
+      
+      // Comparator ops
+      ZPN_CMPEQ16,  ZPN_CMPEQ8,
+      ZPN_SCMPLT16, ZPN_SCMPLT8,
+      ZPN_SCMPLE16, ZPN_SCMPLE8,
+      ZPN_UCMPLT16, ZPN_UCMPLT8,
+      ZPN_UCMPLE16, ZPN_UCMPLE8,
+
+      // Min/Max ops
+      ZPN_SMIN16, ZPN_SMIN8,
+      ZPN_SMAX16, ZPN_SMAX8,
+      ZPN_UMIN16, ZPN_UMIN8,
+      ZPN_UMAX16, ZPN_UMAX8: sub = 1'b1;
+
+      default: sub = 1'b0;
+    endcase
+  end

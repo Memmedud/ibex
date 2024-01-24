@@ -57,24 +57,6 @@ package ibex_pkg;
     RV32PZpn        = 1
   } rv32p_e;
 
-  ///////////////////////
-  // Adder split types //
-  ///////////////////////
-  typedef enum integer {
-    WIDTH32         = 0,
-    WIDTH16         = 1,
-    WIDTH8          = 2
-  } aluwidth_e;
-
-  /////////////////////////
-  // Pext overflow types //
-  /////////////////////////
-  typedef enum integer {
-    NONE            = 0,
-    HALVING         = 1,
-    SATURATING      = 2
-  } overflow_e;
-
   /////////////
   // Opcodes //
   /////////////
@@ -211,39 +193,7 @@ package ibex_pkg;
     ALU_CRC32C_W,
 
     // Zpn extension
-    // Add 16-bit
-    ZPN_ADD16,
-    ZPN_UKADD16,
-    ZPN_URADD16,
-    ZPN_KADD16,
-    ZPN_RADD16,
-
-    // Add 8-bit
-    ZPN_ADD8,
-    ZPN_UKADD8,
-    ZPN_URADD8,
-    ZPN_KADD8,
-    ZPN_RADD8,
-
-    // Sub 16-bit
-    ZPN_SUB16,
-    ZPN_UKSUB16,
-    ZPN_URSUB16,
-    ZPN_KSUB16,
-    ZPN_RSUB16,    
-
-    // Sub 8-bit
-    ZPN_SUB8,
-    ZPN_UKSUB8,
-    ZPN_URSUB8,
-    ZPN_KSUB8,
-    ZPN_RSUB8,
-
-    // Unpack instructions
-    ONEOP,    // SUNPKD8XY + some other stuff
-    ONEOP2    // Bit-counting
-
-    // TODO: Add moooore instructions   
+    ZPN_INSTR   // Special instruction to signalize the ALU that the PEXT-ALU should be used  
 
   } alu_op_e;
 
