@@ -15,8 +15,8 @@ filesets:
       - lowrisc:ibex:ibex_icache
       - lowrisc:dv:dv_fcov_macros
     files:
-      - rtl/ibex_adder.sv
       - rtl/ibex_alu.sv
+      - rtl/ibex_alu_pext.sv
       - rtl/ibex_branch_predict.sv
       - rtl/ibex_compressed_decoder.sv
       - rtl/ibex_controller.sv
@@ -24,6 +24,7 @@ filesets:
       - rtl/ibex_csr.sv
       - rtl/ibex_counter.sv
       - rtl/ibex_decoder.sv
+      - rtl/ibex_decoder_pext.sv
       - rtl/ibex_ex_block.sv
       - rtl/ibex_fetch_fifo.sv
       - rtl/ibex_id_stage.sv

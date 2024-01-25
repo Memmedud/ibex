@@ -1314,6 +1314,36 @@ module ibex_alu #(
     assign imd_val_we_o        = '{default: '0};
   end
 
+  ///////////////
+  // P-ext ALU //
+  ///////////////
+
+  logic[31:0]  zpn_result;
+
+  if (RV32P == RV32PZpn) begin : gen_rv32p
+
+    ibex_pkg_pext::zpn_op_e operator_pext;
+
+    ibex_decoder_pext decoder_pext (
+
+    );
+
+    ibex_alu_pext alu_pext (
+      .operator_i       (operator_pext),
+      .operand_a_i      (operand_a_i),
+      .operand_b_i      (operand_b_i),
+      .enable_i         (),
+
+      .result_o         (zpn_result)    
+    );
+
+  end
+  else begin: gen_no_rv32p
+
+    assign zpn_result = '0;
+
+  end
+
   ////////////////
   // Result mux //
   ////////////////
