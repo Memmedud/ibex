@@ -69,7 +69,7 @@ assign instr = instr_rdata_i;
       3'b000: begin
         unique case (funct7)
 
-          // Add/Sub
+          // Add/Sub    // TODO: Add crossed sub/mult instructions
           // 16-bit add instructions
           7'b010_0000: zpn_operator_o = ZPN_ADD16;
           7'b001_1000: zpn_operator_o = ZPN_UKADD16;
@@ -168,7 +168,11 @@ assign instr = instr_rdata_i;
           // Oneop1 instructions
           7'b101_0110: begin
             unique case (subf5)
-              // TODO: Add INSB
+              // INSB
+              5'b0_0000: zpn_operator_o = ZPN_INSB0;
+              5'b0_0001: zpn_operator_o = ZPN_INSB1;
+              5'b0_0010: zpn_operator_o = ZPN_INSB2;
+              5'b0_0011: zpn_operator_o = ZPN_INSB3;
 
               // SUNPKD
               5'b0_1000: zpn_operator_o = ZPN_SUNPKD810;
@@ -203,6 +207,9 @@ assign instr = instr_rdata_i;
               default: ;
             endcase
           end
+
+          // Misc instructions
+          7'b111_0000: zpn_operator_o = ZPN_AVE;
 
           default: ;
         endcase

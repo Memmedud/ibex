@@ -119,7 +119,7 @@ module ibex_alu_pext #(
                             {alu_result1[8:1]},
                             {alu_result0[8:1]} };
 
-  // Calulate saturating result
+  // Calulate saturating result     // TODO: Remember to set OV bit when overflow
   logic[31:0] saturating_result;
 
   always_comb begin
@@ -170,7 +170,7 @@ module ibex_alu_pext #(
   // Multiplier //
   ////////////////
   // Im afraid
-
+  
 
 
   ////////////////
@@ -197,7 +197,6 @@ module ibex_alu_pext #(
       is_byte_equal[b] = 1'b1;
     end
 
-    // TODO: Verify this actually works
     unique case (signed_operands_i)
       U16, S16: is_equal = { &is_byte_equal[3:2], 
                              &is_byte_equal[3:2], 
@@ -264,7 +263,7 @@ module ibex_alu_pext #(
                          {8{comp_result_packed[0]}} };
 
 
-  // TODO: Clip, abs, cls function...
+  // TODO: Clip, abs, function...
   /////////////
   // Min/Max //
   /////////////
@@ -281,7 +280,6 @@ module ibex_alu_pext #(
   ////////////////
   // Bit-shifts //
   ////////////////
-  // TODO CHange to 2 16 bit and 2 8 bit in total, calculating in paralell...
   // Using 2 16-bit shifters. to shift both halfwords right
   // then 2 8-bit shifters to conditionally shift byte 2 and 0 right 
   // then 2 8-bit shifters to conditionally shift byte 2 and 0 back left
@@ -309,7 +307,7 @@ module ibex_alu_pext #(
   // bit-reverse operand_a for left shifts
   logic[31:0] operand_a_rev;
   for (genvar i = 0; i < 32; i++) begin : gen_rev_operand
-    assign operand_a_rev[i] = operand_a_i[31-i];    // TODO: Check if we need bytewise og wordwise reversing
+    assign operand_a_rev[i] = operand_a_i[31-i];
   end
 
   // Prepare operands
@@ -331,23 +329,19 @@ module ibex_alu_pext #(
 
 
   // TODO: Clean up signal names!!!
-  // Second and third conditional shifter 
-  logic[7:0]    shift_result_second0, shift_result_second2;   // Only need to do this for byte 2 and 0
-  logic[8:0]    shift_result_third0, shift_result_third2;   // Only need to do this for byte 2 and 0
-  logic         unused_shift_result_third0, unused_shift_result_third2;
-  
-  assign shift_result_second0 = shift_result_first0[7:0] << shift_amt[2:0];
-  assign shift_result_second2 = shift_result_first1[7:0] << shift_amt[2:0];
-  assign shift_result_third0  = $signed({ (shift_arith & shift_result_second0[7]), shift_result_second0}) >>> shift_amt[2:0];
-  assign shift_result_third2  = $signed({ (shift_arith & shift_result_second2[7]), shift_result_second2}) >>> shift_amt[2:0];
-  assign unused_shift_result_third0 = shift_result_third0[8];
-  assign unused_shift_result_third2 = shift_result_third2[8];
+  // Second conditional shifter 
+  logic[8:0]    shift_result_second0, shift_result_second2;   // Only need to do this for byte 2 and 0
+  logic[1:0]    unused_shift_result_second;
+
+  assign shift_result_second0  = $signed({ (shift_arith & shift_operand0[7]), shift_operand0[7:0]}) >>> shift_amt[2:0];
+  assign shift_result_second2  = $signed({ (shift_arith & shift_operand1[7]), shift_operand1[7:0]}) >>> shift_amt[2:0];
+  assign unused_shift_result_second = {shift_result_second2[8], shift_result_second0[8]};
 
   // Concatinate result
   logic[31:0] shift_result_full;
   always_comb begin
-    unique case (signed_operands_i)   // TODO: This methodology migth be sub-optimal
-      S8, U8 :  shift_result_full = {shift_result_first1[15:8], shift_result_third2[7:0], shift_result_first0[15:8], shift_result_third0[7:0]};
+    unique case (signed_operands_i)
+      S8, U8 :  shift_result_full = {shift_result_first1[15:8], shift_result_second2[7:0], shift_result_first0[15:8], shift_result_second0[7:0]};
       default:  shift_result_full = {shift_result_first1[15:0], shift_result_first0[15:0]};
     endcase
   end
@@ -363,6 +357,21 @@ module ibex_alu_pext #(
   // Produce final shifter output
   logic[31:0] shift_result;
   assign shift_result = shift_left ? shift_result_rev : shift_result_full;
+
+
+  // TODO
+  //////////////////
+  // Bit Counting //
+  //////////////////
+  /*logic[31:0]   bit_cnt_result;
+
+  // 
+  always_comb begin
+    unique case (operator_i)
+      
+      default: ;
+    endcase
+  end*/
 
 
   ////////////////
@@ -395,9 +404,23 @@ module ibex_alu_pext #(
     endcase
   end
 
-  ////////////////
-  // Some other stuff... //
-  ////////////////
+  /////////////
+  // Average //
+  /////////////
+  // TODO
+
+  /////////////////
+  // Insert Byte //
+  /////////////////
+  // TODO
+  /*logic[31:0]   insb_result;
+  logic[7:0]    insb_byte;
+
+  assign insb_byte = operand_a_i[7:0];
+
+  always_comb begin
+    insbre
+  end*/
 
   ////////////////
   // Result mux //
@@ -459,6 +482,10 @@ module ibex_alu_pext #(
         ZPN_SUNPKD830, ZPN_ZUNPKD830,
         ZPN_SUNPKD831, ZPN_ZUNPKD831,
         ZPN_SUNPKD832, ZPN_ZUNPKD832: result_o = unpack_result;
+
+        // INSB ops
+      //ZPN_INSB0, ZPN_INSB1
+      //ZPN_INSB2, ZPN_INSB3: result_o = insb_result;
 
         default: ;
       endcase
