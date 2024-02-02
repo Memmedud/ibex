@@ -113,22 +113,16 @@ assign instr = instr_rdata_i;
           7'b000_0011: zpn_operator_o = ZPN_RCRSA16;
 
           // Multiplication (More mult instructions in funct3 = 001)
-          // 16-bit multipliction
-          7'b101_0000: zpn_operator_o = ZPN_SMUL16;
-          7'b101_0001: zpn_operator_o = ZPN_SMULX16;
-          7'b101_1000: zpn_operator_o = ZPN_UMUL16;
-          7'b101_1001: zpn_operator_o = ZPN_UMULX16;
+          // 16x16 multipliction
           7'b100_0011: zpn_operator_o = ZPN_KHM16;
           7'b100_1011: zpn_operator_o = ZPN_KHMX16;
 
-          // 8-bit multiplication
-          7'b101_0100: zpn_operator_o = ZPN_SMUL8;
-          7'b101_0101: zpn_operator_o = ZPN_SMULX8;
-          7'b101_1100: zpn_operator_o = ZPN_UMUL8;
-          7'b101_1101: zpn_operator_o = ZPN_UMULX8;
+          // 8x8 multiplication
           7'b100_0111: zpn_operator_o = ZPN_KHM8;
           7'b100_1111: zpn_operator_o = ZPN_KHMX8;
-
+          7'b110_0100: zpn_operator_o = ZPN_SMAQA;
+          7'b110_0101: zpn_operator_o = ZPN_SMAQAsu;
+          7'b110_0110: zpn_operator_o = ZPN_UMAQA;
 
           // Comparison
           // 16-bit Comparison instructions
@@ -202,9 +196,9 @@ assign instr = instr_rdata_i;
               5'b1_0111: zpn_operator_o = ZPN_ZUNPKD832;
 
               // ABS
-              5'b1_0000: zpn_operator_o = KABS8;
-              5'b1_0001: zpn_operator_o = KABS16;
-              5'b1_0100: zpn_operator_o = KABSW;    // TODO: We might not use this instruction
+              5'b1_0000: zpn_operator_o = KABS8;      // TODO
+              5'b1_0001: zpn_operator_o = KABS16;     // TODO
+              5'b1_0100: zpn_operator_o = KABSW;      // TODO
 
               default: ;
             endcase
@@ -217,14 +211,14 @@ assign instr = instr_rdata_i;
               5'b0_0001: zpn_operator_o = ZPN_CLZ8;
               5'b0_1000: zpn_operator_o = ZPN_CLRS16;
               5'b0_1001: zpn_operator_o = ZPN_CLZ16;
-            //5'b1_1000: zpn_operator_o = ZPN_CLRS32;   // We might need this, but I hope not
+              5'b1_1000: zpn_operator_o = ZPN_CLRS32;   // TODO
 
               default: ;
             endcase
           end
 
           // Misc instructions
-          7'b111_0000: zpn_operator_o = ZPN_AVE;
+          7'b111_0000: zpn_operator_o = ZPN_AVE;  // TODO
 
           default: ;
         endcase
@@ -232,7 +226,65 @@ assign instr = instr_rdata_i;
 
       3'b001: begin
         unique case (funct7)
-          // TODO: Add instructions
+          // Multiplication
+          // 32x32 multiplication
+          7'b010_0000: zpn_operator_o = ZPN_SMMUL;
+          7'b010_1000: zpn_operator_o = ZPN_SMMULu;
+          7'b011_0000: zpn_operator_o = ZPN_KMMAC;
+          7'b011_1000: zpn_operator_o = ZPN_KMMACu;
+          7'b010_0001: zpn_operator_o = ZPN_KMMSB;
+          7'b010_1001: zpn_operator_o = ZPN_KMMSBu;
+          7'b011_0001: zpn_operator_o = ZPN_KWMMUL;
+          7'b011_1001: zpn_operator_o = ZPN_KWMMULu;
+          7'b110_0010: zpn_operator_o = ZPN_MADDR32;
+          7'b110_0011: zpn_operator_o = ZPN_MSUBR32;
+
+          // 32x16 multiplication
+          7'b010_0010: zpn_operator_o = ZPN_SMMWB;
+          7'b010_1010: zpn_operator_o = ZPN_SMMWBu;
+          7'b011_0010: zpn_operator_o = ZPN_SMMWT;
+          7'b011_1010: zpn_operator_o = ZPN_SMMWTu;
+          7'b010_0011: zpn_operator_o = ZPN_KMMAWB;
+          7'b010_1011: zpn_operator_o = ZPN_KMMAWBu;
+          7'b011_0011: zpn_operator_o = ZPN_KMMAWT;
+          7'b011_1011: zpn_operator_o = ZPN_KMMAWTu;
+          7'b100_0111: zpn_operator_o = ZPN_KMMWB2;
+          7'b100_1111: zpn_operator_o = ZPN_KMMWB2u;
+          7'b101_0111: zpn_operator_o = ZPN_KMMWT2;
+          7'b101_1111: zpn_operator_o = ZPN_KMMWT2u;
+          7'b110_0111: zpn_operator_o = ZPN_KMMAWB2;
+          7'b110_1111: zpn_operator_o = ZPN_KMMAWB2u;
+          7'b111_0111: zpn_operator_o = ZPN_KMMAWT2;
+          7'b111_1111: zpn_operator_o = ZPN_KMMAWT2u;
+
+          // 16x16 multiplication
+          7'b000_0100: zpn_operator_o = ZPN_SMBB16;
+          7'b000_1100: zpn_operator_o = ZPN_SMBT16;
+          7'b001_0100: zpn_operator_o = ZPN_SMTT16;
+          7'b001_1100: zpn_operator_o = ZPN_KMDA;
+          7'b010_0100: zpn_operator_o = ZPN_KMADA;
+          7'b010_1100: zpn_operator_o = ZPN_SMDS;
+          7'b011_0100: zpn_operator_o = ZPN_SMDRS;
+          7'b011_1100: zpn_operator_o = ZPN_SMXDS;
+          7'b001_1101: zpn_operator_o = ZPN_KMXDA;
+          7'b010_0101: zpn_operator_o = ZPN_KMAXDA;
+          7'b010_1101: zpn_operator_o = ZPN_KMABB;
+          7'b011_0101: zpn_operator_o = ZPN_KMABT;
+          7'b011_1101: zpn_operator_o = ZPN_KMATT;
+          7'b010_0110: zpn_operator_o = ZPN_KMSDA;
+          7'b010_1110: zpn_operator_o = ZPN_KMADS;
+          7'b011_0110: zpn_operator_o = ZPN_KMADRS;
+          7'b011_1110: zpn_operator_o = ZPN_KMAXDS;
+          7'b010_0111: zpn_operator_o = ZPN_KMSXDA;
+          7'b110_1001: zpn_operator_o = ZPN_KDMABB;
+          7'b111_0001: zpn_operator_o = ZPN_KDMABT;
+          7'b111_1001: zpn_operator_o = ZPN_KDMATT;
+          7'b000_0101: zpn_operator_o = ZPN_KDMBB;
+          7'b000_1101: zpn_operator_o = ZPN_KDMBT;
+          7'b001_0101: zpn_operator_o = ZPN_KDMTT;
+          7'b000_0110: zpn_operator_o = ZPN_KHMBB;
+          7'b000_1110: zpn_operator_o = ZPN_KHMBT;
+          7'b001_0110: zpn_operator_o = ZPN_KHMTT;
 
           default: ;
         endcase
