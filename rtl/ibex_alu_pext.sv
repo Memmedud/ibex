@@ -346,8 +346,8 @@ module ibex_alu_pext #(
   ////////////////
   // TODO: Fix this description
   // Using 2 16-bit shifters. to shift both halfwords right
-  // then 2 8-bit shifters to conditionally shift byte 2 and 0 right 
-  // then 2 8-bit shifters to conditionally shift byte 2 and 0 back left
+  // then 2 8-bit shifters to conditionally shift byte 2 and 0 left then choose between 16 or 8 bit 
+  
 
   // Decode if we should left-shift (right shifting by default)
   logic shift_left;
@@ -420,21 +420,101 @@ module ibex_alu_pext #(
   assign shift_result = shift_left ? shift_result_rev : shift_result_full;
 
 
-  // TODO
   //////////////////
-  // Bit Counting //
+  // Bit-counting //
   //////////////////
-  logic[31:0]   bit_cnt_result;
-  assign bit_cnt_result = '0;
-
-
-  // 
-  /*always_comb begin
-    unique case (operator_i)
-      
-      default: ;
+  // Prepare operand
+  logic[3:0] negate;
+  always_comb begin
+    unique case(signed_operands_i)
+      U8, U16: negate = 4'b1111;
+      S8:      negate = {~operand_a_i[31], ~operand_a_i[24], ~operand_a_i[15], ~operand_a_i[7]};
+      S16:     negate = { {2{~operand_a_i[31]}}, {2{~operand_a_i[15]}}};
     endcase
-  end*/
+  end
+
+  // Have to do this because Verilat0r is quirky, Im sorry... 
+  logic bc0, bc1, bc2, bc3, bc4, bc5, bc6, bc7, bc8, bc9, bc10, bc11, bc12, bc13, bc14, bc15,
+        bc16, bc17, bc18, bc19, bc20, bc21, bc22, bc23, bc24, bc25, bc26, bc27, bc28, bc29, bc30, bc31;
+
+  assign bc31 = negate[3] ? ~operand_a_i[31] : operand_a_i[31];
+  assign bc30 = negate[3] ? (~operand_a_i[30] & bc31) : (operand_a_i[30] & bc31);
+  assign bc29 = negate[3] ? (~operand_a_i[29] & bc30) : (operand_a_i[29] & bc30);
+  assign bc28 = negate[3] ? (~operand_a_i[28] & bc29) : (operand_a_i[28] & bc29);
+  assign bc27 = negate[3] ? (~operand_a_i[27] & bc28) : (operand_a_i[27] & bc28);
+  assign bc26 = negate[3] ? (~operand_a_i[27] & bc27) : (operand_a_i[27] & bc27);
+  assign bc25 = negate[3] ? (~operand_a_i[25] & bc26) : (operand_a_i[25] & bc26);
+  assign bc24 = negate[3] ? (~operand_a_i[24] & bc25) : (operand_a_i[24] & bc25);
+
+  assign bc23 = width8 ? (negate[2] ? ~operand_a_i[23] : operand_a_i[23]) : (negate[2] ? (~operand_a_i[23] & bc24) : (operand_a_i[23] & bc24)); 
+  assign bc22 = negate[2] ? (~operand_a_i[22] & bc23) : (operand_a_i[22] & bc23);
+  assign bc21 = negate[2] ? (~operand_a_i[21] & bc22) : (operand_a_i[21] & bc22);
+  assign bc20 = negate[2] ? (~operand_a_i[20] & bc21) : (operand_a_i[20] & bc21);
+  assign bc19 = negate[2] ? (~operand_a_i[19] & bc20) : (operand_a_i[19] & bc20);
+  assign bc18 = negate[2] ? (~operand_a_i[18] & bc19) : (operand_a_i[18] & bc19);
+  assign bc17 = negate[2] ? (~operand_a_i[17] & bc18) : (operand_a_i[17] & bc18);
+  assign bc16 = negate[2] ? (~operand_a_i[16] & bc17) : (operand_a_i[16] & bc17);
+
+  assign bc15 = negate[1] ? ~operand_a_i[15] : operand_a_i[15];
+  assign bc14 = negate[1] ? (~operand_a_i[14] & bc15) : (operand_a_i[14] & bc15);
+  assign bc13 = negate[1] ? (~operand_a_i[13] & bc14) : (operand_a_i[13] & bc14);
+  assign bc12 = negate[1] ? (~operand_a_i[12] & bc13) : (operand_a_i[12] & bc13);
+  assign bc11 = negate[1] ? (~operand_a_i[11] & bc12) : (operand_a_i[11] & bc12);
+  assign bc10 = negate[1] ? (~operand_a_i[10] & bc11) : (operand_a_i[10] & bc11);
+  assign bc9  = negate[1] ? (~operand_a_i[9] & bc10)  : (operand_a_i[9]  & bc10);
+  assign bc8  = negate[1] ? (~operand_a_i[8] & bc9)   : (operand_a_i[8]  & bc9);
+
+  assign bc7  = width8 ? (negate[0] ? ~operand_a_i[7] : operand_a_i[7]) : (negate[0] ? (~operand_a_i[7] & bc8) : (operand_a_i[7] & bc8)); 
+  assign bc6  = negate[0] ? (~operand_a_i[6] & bc7)   : (operand_a_i[6] & bc7);
+  assign bc5  = negate[0] ? (~operand_a_i[5] & bc6)   : (operand_a_i[5] & bc6);
+  assign bc4  = negate[0] ? (~operand_a_i[4] & bc5)   : (operand_a_i[4] & bc5);
+  assign bc3  = negate[0] ? (~operand_a_i[3] & bc4)   : (operand_a_i[3] & bc4);
+  assign bc2  = negate[0] ? (~operand_a_i[2] & bc3)   : (operand_a_i[2] & bc3);
+  assign bc1  = negate[0] ? (~operand_a_i[1] & bc2)   : (operand_a_i[1] & bc2);
+  assign bc0  = negate[0] ? (~operand_a_i[0] & bc1)   : (operand_a_i[0] & bc1);
+    
+  logic[31:0]   bit_cnt_operand;
+  assign bit_cnt_operand = {bc31, bc30, bc29, bc28, bc27, bc26, bc25, bc24, bc23, bc22, bc21, bc20, bc19, bc18, bc17, bc16, 
+                            bc15, bc14, bc13, bc12, bc11, bc10, bc9,  bc8,  bc7,  bc6,  bc5,  bc4,  bc3,  bc2,  bc1,  bc0};
+
+  // Bit counter is a Brent-Kung Adder
+  // TODO: Add some more info on this
+  // First Adder layer
+  logic[31:0]   bit_cnt_first_layer;  // We get 16 2-bit results
+  for (genvar i = 0; i < 16; i++) begin : gen_bit_cnt_adder1
+    assign bit_cnt_first_layer[2*i+1 : 2*i] = bit_cnt_operand[2*i] + bit_cnt_operand[2*i + 1];
+  end
+
+  // Second adder layer
+  logic[23:0]   bit_cnt_second_layer; // And 8 3-bit results
+  for (genvar i = 0; i < 8; i++) begin : gen_bit_cnt_adder2
+    assign bit_cnt_second_layer[3*i +: 3] = bit_cnt_first_layer[4*i+1 : 4*i] + bit_cnt_first_layer[4*i+3 : 4*i+2];
+  end
+
+  // Third adder layer  // For 8-bit we stop at 3 layers
+  logic[15:0]   bit_cnt_third_layer;  // And 4 4-bit results
+  for (genvar i = 0; i < 4; i++) begin : gen_bit_cnt_adder3
+    assign bit_cnt_third_layer[4*i +: 4] = bit_cnt_second_layer[6*i+2 : 6*i] + bit_cnt_second_layer[6*i+5 : 6*i+3];
+  end
+
+  // Fourth adder layer
+  logic[9:0]   bit_cnt_fourth_layer;  // And 2 5-bit results
+  assign bit_cnt_fourth_layer[4:0] = {1'b0, bit_cnt_third_layer[3:0]}  + {1'b0, bit_cnt_third_layer[7:4]};
+  assign bit_cnt_fourth_layer[9:5] = {1'b0, bit_cnt_third_layer[11:8]} + {1'b0, bit_cnt_third_layer[15:12]};
+
+  // Concatinate results
+  logic[31:0]   bit_cnt_result_width8, bit_cnt_result_width16;
+  assign bit_cnt_result_width8 = {4'b0000, bit_cnt_third_layer[15:12], 
+                                  4'b0000, bit_cnt_third_layer[11:8] , 
+                                  4'b0000, bit_cnt_third_layer[7:4]  , 
+                                  4'b0000, bit_cnt_third_layer[3:0]   };
+
+  assign bit_cnt_result_width16 = {11'h000, bit_cnt_fourth_layer[9:5], 
+                                   11'h000, bit_cnt_fourth_layer[4:0] };
+
+  // Bit-count result mux
+  logic[31:0]   bit_cnt_result;   // TODO: Make a "global" width8 signal
+  assign bit_cnt_result = width8 ? bit_cnt_result_width8 : bit_cnt_result_width16;
 
 
   ////////////////
@@ -467,11 +547,35 @@ module ibex_alu_pext #(
     endcase
   end
 
+
+  /////////////
+  // PACKING //
+  /////////////
+  logic[31:0] packing_result;
+  logic[15:0] paking_half_a0, paking_half_a1, paking_half_b0, paking_half_b1;
+
+  assign paking_half_a0 = operand_a_i[15:0];
+  assign paking_half_a1 = operand_a_i[31:16];
+  assign paking_half_b0 = operand_b_i[15:0];
+  assign paking_half_b1 = operand_b_i[31:16];
+
+  always_comb begin
+    packing_result = '0;
+    unique case (operator_i)
+      ZPN_PKBB16: packing_result = {paking_half_a0, paking_half_b0};
+      ZPN_PKBT16: packing_result = {paking_half_a0, paking_half_b1};
+      ZPN_PKTB16: packing_result = {paking_half_a1, paking_half_b0};
+      ZPN_PKTT16: packing_result = {paking_half_a1, paking_half_b1};
+    endcase
+  end
+
   /////////////
   // Average //
   /////////////
   // TODO
     // Assuming we can put rd on rs2, then we good
+  // Make the adder support full 32-bit add
+
 
   /////////////////
   // Insert Byte //
@@ -485,6 +589,7 @@ module ibex_alu_pext #(
   always_comb begin
     insbre
   end*/
+
 
   ////////////////
   // Result mux //
@@ -542,7 +647,7 @@ module ibex_alu_pext #(
         ZPN_UMIN16, ZPN_UMIN8,
         ZPN_UMAX16, ZPN_UMAX8: result_o = minmax_result;
 
-        // Shift ops      // Omitting rounding shifts for now
+        // Shift ops      // Omitting rounding shifts for now And Immediate is not implemented properly
         ZPN_SRA16,    ZPN_SRA8,
         ZPN_SRAI16,   ZPN_SRAI8,
         ZPN_SRL16,    ZPN_SRL8,
@@ -563,6 +668,10 @@ module ibex_alu_pext #(
         ZPN_SUNPKD830, ZPN_ZUNPKD830,
         ZPN_SUNPKD831, ZPN_ZUNPKD831,
         ZPN_SUNPKD832, ZPN_ZUNPKD832: result_o = unpack_result;
+
+        // Paking ops
+        ZPN_PKBB16, ZPN_PKBT16,
+        ZPN_PKTB16, ZPN_PKTT16: result_o = packing_result;
 
         // INSB ops   // TODO
       //ZPN_INSB0, ZPN_INSB1

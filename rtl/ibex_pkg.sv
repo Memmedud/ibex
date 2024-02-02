@@ -455,6 +455,9 @@ package ibex_pkg;
     CSR_MENVCFG   = 12'h30A,
     CSR_MENVCFGH  = 12'h31A,
 
+    // P-ext Saturation Register
+    CSR_VXSAT     = 12'h009,
+
     // Machine trap handling
     CSR_MSCRATCH  = 12'h340,
     CSR_MEPC      = 12'h341,
