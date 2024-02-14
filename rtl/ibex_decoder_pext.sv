@@ -3,52 +3,169 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-
-/**
+/*
  * P-ext instruction decoder
  */
 module ibex_decoder_pext #(
   
 ) (
-  input  logic[31:0]        instr_rdata_i,
+  input  logic[31:0]                instr_rdata_i,
 
-  output ibex_pkg_pext::zpn_op_e  zpn_operator_o,
-  output ibex_pkg_pext::signed_type_e signed_operands
+  output ibex_pkg_pext::zpn_op_e    zpn_operator_o,
+  output logic                      zpn_illegal_insn_o,
 
-  //output logic                    imm_o // TODO: Implement this
+  output ibex_pkg_pext::mult_mode_e zpn_mult_mode_o,
+  output logic                      zpn_mult_en_o,
+
+  //output logic[4:0]                 imm_operand_o,
+  //output logic                      imm_instr_o,
+
+  output logic                      width8_o,
+  output logic                      width32_o,
+  output logic                      signed_ops_o
 ); 
   import ibex_pkg_pext::*;
 
+  logic[31:0] instr;
+  assign instr = instr_rdata_i;
+  assign imm_operand_o = instr[24:20];
 
-
-logic[31:0] instr;
-assign instr = instr_rdata_i;
-
-  // Decode instruction width
+  ///////////////////////
+  // Immediate decoder //
+  ///////////////////////
   always_comb begin
     unique case (zpn_operator_o)
-      // TODO: Fix this!!!
+      // Shift ops
+      ZPN_SRAI16,   ZPN_SRAI8,
+      ZPN_SRLI16,   ZPN_SRLI8,
+      ZPN_SLLI16,   ZPN_SLLI8,
+      ZPN_KSLLIW,   ZPN_SRAIu,
+      // Clip ops
+      ZPN_SCLIP16,  ZPN_SCLIP8,  
+      ZPN_SCLIP32,  ZPN_UCLIP32: imm_instr_o = 1'b1;
+
+      default: imm_instr_o = 1'b0;
+    endcase
+  end
+
+
+  ////////////////////////
+  // Width/sign decoder //
+  ////////////////////////
+  always_comb begin
+    unique case (zpn_operator_o)
+      // Signed 32-bit
+      ZPN_KADDW,  ZPN_RADDW,
+      ZPN_KSUBW,  ZPN_RSUBW,
+      ZPN_CLRS32, ZPN_SCLIP32,
+      ZPN_AVE,    ZPN_KABSW,
+      ZPN_SRAu,   ZPN_SRAIu: begin
+
+        width32_o    = 1'b1;
+        width8_o     = 1'b0;
+        signed_ops_o = 1'b1;
+
+      end
+
+      // Unsigned 32-bit    // TODO: Probably add mults here as well
+      ZPN_UKADDW,   ZPN_URADDW,
+      ZPN_UKSUBW,   ZPN_URSUBW,
+      ZPN_UCLIP32,  ZPN_KSLLW,  
+      ZPN_KSLLIW: begin
+        
+        width32_o    = 1'b1;
+        width8_o     = 1'b0;
+        signed_ops_o = 1'b0;
+
+      end
+
+      // Signed 16-bit    // TODO Add mults
       ZPN_RADD16,   ZPN_KADD16,
-      ZPN_RSUB16,   ZPN_KSUB16,
-      ZPN_SMIN16,   ZPN_SMAX16,   
-      ZPN_SCMPLT16, ZPN_SCMPLE16: signed_operands = S16;
+      ZPN_ADD16,    ZPN_RSUB16,
+      ZPN_KSUB16,   ZPN_SUB16,    
+      ZPN_KADDH,    ZPN_KSUBH,
+      ZPN_RCRAS16,  ZPN_RCRSA16,
+      ZPN_KCRAS16,  ZPN_KCRSA16,
+      ZPN_CRAS16,   ZPN_CRSA16,
+      ZPN_RSTAS16,  ZPN_RSTSA16,
+      ZPN_KSTAS16,  ZPN_KSTSA16,
+      ZPN_STAS16,   ZPN_STSA16,
+      ZPN_SCMPLT16, ZPN_SCMPLE16,
+      ZPN_CMPEQ16,  ZPN_SRA16,
+      ZPN_SRA16u,   ZPN_SRAI16,
+      ZPN_KSLRA16,  ZPN_KSLRA16u,
+      ZPN_SMIN16,   ZPN_SMAX16,
+      ZPN_SCLIP16,  ZPN_KABS16,
+      ZPN_CLRS16: begin
 
-      ZPN_UKADD16,  
-      ZPN_UKSUB16,  ZPN_SUB16, 
-      ZPN_URSUB16,  ZPN_CMPEQ16,  
-      ZPN_UCMPLT16, ZPN_UCMPLE16, 
-      ZPN_UMIN16,   ZPN_UMAX16:   signed_operands = U16;   
-      
-      ZPN_RSUB8,    ZPN_KSUB8,
-      ZPN_SMIN8,    ZPN_SMAX8,
-      ZPN_SCMPLT8,  ZPN_SCMPLE8:  signed_operands = S8;
+        width32_o    = 1'b0;
+        width8_o     = 1'b0;
+        signed_ops_o = 1'b1;
 
-      ZPN_UKSUB8,   ZPN_SUB8,
-      ZPN_URSUB8,   ZPN_CMPEQ8,   
-      ZPN_UCMPLT8,  ZPN_UCMPLE8,
-      ZPN_UMIN8,    ZPN_UMAX8:    signed_operands = U8;
+      end
 
-      default: signed_operands = U16;   // TODO: Fix this hack
+      // Unsigned 16-bit  // TODO Add mults
+      ZPN_URADD16,  ZPN_UKADD16,
+      ZPN_URSUB16,  ZPN_UKSUB16,
+      ZPN_UKADDH,   ZPN_UKSUBH,
+      ZPN_URCRAS16, ZPN_URCRSA16,
+      ZPN_UKCRAS16, ZPN_UKCRSA16,
+      ZPN_URSTAS16, ZPN_URSTSA16,
+      ZPN_UKSTAS16, ZPN_UKSTSA16,
+      ZPN_UCMPLT16, ZPN_UCMPLE16,
+      ZPN_SRL16,    ZPN_SRL16u,
+      ZPN_SRLI16,   ZPN_SLL16,
+      ZPN_KSLL16,   ZPN_SLLI16,
+      ZPN_UMIN16,   ZPN_UMAX16,
+      ZPN_CLZ16: begin
+
+        width32_o    = 1'b0;
+        width8_o     = 1'b0;
+        signed_ops_o = 1'b0;
+
+      end
+
+      // Signed 8-bit  // TODO Add mults
+      ZPN_RADD8,   ZPN_KADD8,
+      ZPN_ADD8,    ZPN_RSUB8,
+      ZPN_KSUB8,   ZPN_SUB8,    
+      ZPN_SCMPLT8, ZPN_SCMPLE8,
+      ZPN_CMPEQ8,  ZPN_SRA8,
+      ZPN_SRA8u,   ZPN_SRAI8,
+      ZPN_KSLRA8,  ZPN_KSLRA8u,
+      ZPN_SMIN8,   ZPN_SMAX8,
+      ZPN_SCLIP8,  ZPN_KABS8,
+      ZPN_CLRS8: begin
+
+        width32_o    = 1'b0;
+        width8_o     = 1'b1;
+        signed_ops_o = 1'b1;
+
+      end
+
+      // Unsiged 8-bit  // TODO Add mults
+      ZPN_URADD8,  ZPN_UKADD8,
+      ZPN_URSUB8,  ZPN_UKSUB8,
+      ZPN_UCMPLT8, ZPN_UCMPLE8,
+      ZPN_SRL8,    ZPN_SRL8u,
+      ZPN_SRLI8,   ZPN_SLL8,
+      ZPN_KSLL8,   ZPN_SLLI8,
+      ZPN_UMIN8,   ZPN_UMAX8,
+      ZPN_CLZ8: begin
+
+        width32_o    = 1'b0;
+        width8_o     = 1'b1;
+        signed_ops_o = 1'b0;
+
+      end
+
+      default: begin
+
+        width32_o    = 1'b0;
+        width8_o     = 1'b0;
+        signed_ops_o = 1'b0;
+
+      end
     endcase
   end
 
@@ -65,10 +182,11 @@ assign instr = instr_rdata_i;
   assign subf5  = instr[24:20]; 
 
   always_comb begin
+    illegal_insn_o = 1'b0;
+
     unique case (funct3)
       3'b000: begin
         unique case (funct7)
-
           // Add/Sub
           // 16-bit add instructions
           7'b010_0000: zpn_operator_o = ZPN_ADD16;
@@ -155,21 +273,29 @@ assign instr = instr_rdata_i;
           // Shift
           // 16-bit shift instructions
           7'b010_1000: zpn_operator_o = ZPN_SRA16;
+          7'b011_0000: zpn_operator_o = ZPN_SRA16u;
           7'b011_1000: zpn_operator_o = ZPN_SRAI16;
           7'b010_1001: zpn_operator_o = ZPN_SRL16;
+          7'b011_0001: zpn_operator_o = ZPN_SRL16u;
           7'b011_1001: zpn_operator_o = ZPN_SRLI16;
           7'b010_1010: zpn_operator_o = ZPN_SLL16;
+          7'b011_0010: zpn_operator_o = ZPN_KSLL16;
           7'b011_1010: zpn_operator_o = ZPN_SLLI16; // NOTE: Rounding is determined in immediate value...
-          // TODO: Maybe add the other shift instructions
+          7'b010_1011: zpn_operator_o = ZPN_KSLRA16; 
+          7'b011_0011: zpn_operator_o = ZPN_KSLRA16u; 
       
           // 8-bit shift instructions
-          7'b010_1100: zpn_operator_o = ZPN_SRA16;
-          7'b011_1100: zpn_operator_o = ZPN_SRAI16;
-          7'b010_1101: zpn_operator_o = ZPN_SRL16;
-          7'b011_1101: zpn_operator_o = ZPN_SRLI16;
-          7'b010_1110: zpn_operator_o = ZPN_SLL16;
-          7'b011_1110: zpn_operator_o = ZPN_SLLI16; // NOTE: Rounding is determined in immediate value...
-          // TODO: Maybe add the other shift instructions
+          7'b010_1100: zpn_operator_o = ZPN_SRA8;
+          7'b011_0100: zpn_operator_o = ZPN_SRA8u;
+          7'b011_1100: zpn_operator_o = ZPN_SRAI8;
+          7'b010_1101: zpn_operator_o = ZPN_SRL8;
+          7'b011_0101: zpn_operator_o = ZPN_SRL8u;
+          7'b011_1101: zpn_operator_o = ZPN_SRLI8;
+          7'b010_1110: zpn_operator_o = ZPN_SLL8;
+          7'b011_0110: zpn_operator_o = ZPN_KSLL8;
+          7'b011_1110: zpn_operator_o = ZPN_SLLI8; // NOTE: Rounding is determined in immediate value...
+          7'b010_1111: zpn_operator_o = ZPN_KSLRA8; 
+          7'b011_0111: zpn_operator_o = ZPN_KSLRA8u; 
 
 
           // Oneop1 instructions
@@ -196,9 +322,9 @@ assign instr = instr_rdata_i;
               5'b1_0111: zpn_operator_o = ZPN_ZUNPKD832;
 
               // ABS
-              5'b1_0000: zpn_operator_o = KABS8;      // TODO
-              5'b1_0001: zpn_operator_o = KABS16;     // TODO
-              5'b1_0100: zpn_operator_o = KABSW;      // TODO
+              5'b1_0000: zpn_operator_o = KABS8; 
+              5'b1_0001: zpn_operator_o = KABS16;
+              5'b1_0100: zpn_operator_o = KABSW; 
 
               default: ;
             endcase
@@ -211,14 +337,22 @@ assign instr = instr_rdata_i;
               5'b0_0001: zpn_operator_o = ZPN_CLZ8;
               5'b0_1000: zpn_operator_o = ZPN_CLRS16;
               5'b0_1001: zpn_operator_o = ZPN_CLZ16;
-              5'b1_1000: zpn_operator_o = ZPN_CLRS32;   // TODO
+              5'b1_1000: zpn_operator_o = ZPN_CLRS32;
 
               default: ;
             endcase
           end
 
           // Misc instructions
-          7'b111_0000: zpn_operator_o = ZPN_AVE;  // TODO
+          7'b111_0000: zpn_operator_o = ZPN_AVE;
+
+          7'b100_0010: zpn_operator_o = ZPN_SCLIP16;    // Also UCLIP16
+          7'b100_0110: zpn_operator_o = ZPN_SCLIP8;     // Also UCLIP8
+          7'b111_0010: zpn_operator_o = ZPN_SCLIP32;
+          7'b111_1010: zpn_operator_o = ZPN_UCLIP32;
+
+          7'b111_1110: zpn_operator_o = ZPN_PBSAD;
+          7'b111_1111: zpn_operator_o = ZPN_PBSADA;
 
           default: ;
         endcase
@@ -226,6 +360,43 @@ assign instr = instr_rdata_i;
 
       3'b001: begin
         unique case (funct7)
+          // Add/Sub
+          // 32-bit Add
+          7'b000_0000: zpn_operator_o = ZPN_KADDW;
+          7'b000_1000: zpn_operator_o = ZPN_UKADDW;
+          7'b001_0000: zpn_operator_o = ZPN_RADDW;
+          7'b001_1000: zpn_operator_o = ZPN_URADDW;
+
+          // 16-bit Add
+          7'b000_0010: zpn_operator_o = ZPN_KADDH;
+          7'b000_1010: zpn_operator_o = ZPN_UKADDH;
+
+          // 32-bit Sub
+          7'b000_0001: zpn_operator_o = ZPN_KSUBW;
+          7'b000_1001: zpn_operator_o = ZPN_UKSUBW;
+          7'b001_0001: zpn_operator_o = ZPN_RSUBW;
+          7'b001_1001: zpn_operator_o = ZPN_URSUBW;
+
+          // 16-bit Sub
+          7'b000_0011: zpn_operator_o = ZPN_KSUBW;
+          7'b000_1011: zpn_operator_o = ZPN_UKSUBW;
+
+
+          // Bit-shifting
+          // 32-bit Shift
+          7'b001_0010: zpn_operator_o = ZPN_SRAu;
+          7'b001_0011: zpn_operator_o = ZPN_KSLLW;
+          7'b001_1011: zpn_operator_o = ZPN_KSLLIW;
+          7'b011_0111: zpn_operator_o = ZPN_KSLRAW;
+          7'b011_1111: zpn_operator_o = ZPN_KSLRAWu;
+          
+          // Pack ops
+          7'b000_0111: zpn_operator_o = ZPN_PKBB16;
+          7'b000_1111: zpn_operator_o = ZPN_PKBT16;
+          7'b001_0111: zpn_operator_o = ZPN_PKTT16;
+          7'b001_1111: zpn_operator_o = ZPN_PKTB16;
+
+
           // Multiplication
           // 32x32 multiplication
           7'b010_0000: zpn_operator_o = ZPN_SMMUL;
@@ -310,7 +481,7 @@ assign instr = instr_rdata_i;
         endcase
       end
 
-      default: ;
+      default: illegal_insn_o = 1'b1;
     endcase
   end
 
