@@ -21,6 +21,7 @@ module ibex_ex_block #(
   input  ibex_pkg::alu_op_e     alu_operator_i,
   input  logic [31:0]           alu_operand_a_i,
   input  logic [31:0]           alu_operand_b_i,
+  input  logic [31:0]           alu_operand_rd_i,
   input  logic                  alu_instr_first_cycle_i,
 
   // Branch Target ALU
@@ -135,6 +136,20 @@ module ibex_ex_block #(
     .is_equal_result_o  (alu_is_equal_result)
   );
 
+  ibex_alu_pext alu_pext_i (
+    .operand_a_i        (alu_operand_a_i),
+    .operand_b_i        (alu_operand_b_i),
+    .enable_i           (),
+    .operator_i         (zpn_operator_i),
+    .width8_i           (),
+    .width32_i          (),
+    .signed_ops_i       (),
+    .imm_val_i          (),
+    .imm_instr_i        (),
+    .result_o           (),
+    .set_ov_o           ()
+  );
+
   ////////////////
   // Multiplier //
   ////////////////
@@ -192,6 +207,18 @@ module ibex_ex_block #(
       .multdiv_result_o  (multdiv_result)
     );
   end
+
+  ibex_mult_pext mult_pext_i (
+    .clk_i                (clk_i),
+    .rst_ni               (rst_ni),
+    .mult_en_i            (),
+    .operator_i           (zpn_operator_i),
+    .op_a_i               (alu_operand_a_i),
+    .op_b_i               (alu_operand_b_i),
+    .rd_val_i             (alu_operand_rd_i),
+    .mult_result_o        (),
+    .valid_o              ()
+  );
 
   // Multiplier/divider may require multiple cycles. The ALU output is valid in the same cycle
   // unless the intermediate result register is being written (which indicates this isn't the

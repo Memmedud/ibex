@@ -32,6 +32,10 @@ module ibex_register_file_fpga #(
   //Read port R2
   input  logic [          4:0] raddr_b_i,
   output logic [DataWidth-1:0] rdata_b_o,
+  // TODO Add if
+  //Read port R3
+  input  logic [4:0]           raddr_rd_i,
+  output logic [DataWidth-1:0] rdata_rd_o,
   // Write port W1
   input  logic [          4:0] waddr_a_i,
   input  logic [DataWidth-1:0] wdata_a_i,
@@ -52,6 +56,9 @@ module ibex_register_file_fpga #(
 
   // async_read b
   assign rdata_b_o = (raddr_b_i == '0) ? '0 : mem[raddr_b_i];
+
+  // async_read rd
+  assign rdata_rd_o = (raddr_rd_i == '0) ? '0 : mem[raddr_rd_i];
 
   // we select
   assign we = (waddr_a_i == '0) ? 1'b0 : we_a_i;

@@ -7,7 +7,7 @@
 // those from the main core. The second core runs synchronously with the main core, delayed by
 // LockstepOffset cycles.
 
-// SEC_CM: LOGIC.SHADOW
+// SEC_CM: LOGIC.SHADOW   // TODO
 module ibex_lockstep import ibex_pkg::*; #(
   parameter int unsigned LockstepOffset    = 2,
   parameter bit          PMPEnable         = 1'b0,

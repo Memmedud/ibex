@@ -23,7 +23,8 @@ module ibex_cs_registers #(
   parameter int unsigned      PMPNumRegions     = 4,
   parameter bit               RV32E             = 0,
   parameter ibex_pkg::rv32m_e RV32M             = ibex_pkg::RV32MFast,
-  parameter ibex_pkg::rv32b_e RV32B             = ibex_pkg::RV32BNone
+  parameter ibex_pkg::rv32b_e RV32B             = ibex_pkg::RV32BNone,
+  parameter ibex_pkg::rv32p_r RV32P             = ibex_pkg::RV32PNone
 ) (
   // Clock and Reset
   input  logic                 clk_i,
@@ -91,6 +92,7 @@ module ibex_cs_registers #(
   output logic                 icache_enable_o,
   output logic                 csr_shadow_err_o,
   input  logic                 ic_scr_key_valid_i,
+  input  logic                 vxsat_set_i,
 
   // Exception save/restore
   input  logic                 csr_save_if_i,
@@ -142,6 +144,7 @@ module ibex_cs_registers #(
   // All bitmanip configs enable non-ratified sub-extensions
   localparam int unsigned RV32BExtra   = (RV32B != RV32BNone) ? 1 : 0;
   localparam int unsigned RV32MEnabled = (RV32M == RV32MNone) ? 0 : 1;
+  localparam int unsigned RV32PEnabled = (RV32P == RV32PNone) ? 0 : 1;
   localparam int unsigned PMPAddrWidth = (PMPGranularity > 0) ? 33 - PMPGranularity : 32;
 
   // misa
@@ -155,6 +158,7 @@ module ibex_cs_registers #(
     | (32'(!RV32E)       <<  8)  // I - RV32I/64I/128I base ISA
     | (RV32MEnabled      << 12)  // M - Integer Multiply/Divide extension
     | (0                 << 13)  // N - User level interrupts supported
+    | (RV32PEnabled      << 15)  // P - Packed-SIMD extension
     | (0                 << 18)  // S - Supervisor mode implemented
     | (1                 << 20)  // U - User mode implemented
     | (RV32BExtra        << 23)  // X - Non-standard extensions present
@@ -225,6 +229,8 @@ module ibex_cs_registers #(
   logic [31:0] mtvec_q, mtvec_d;
   logic        mtvec_err;
   logic        mtvec_en;
+  logic        vxsat_q, vxsat_d;
+  logic        vxsat_en;
   irqs_t       mip;
   dcsr_t       dcsr_q, dcsr_d;
   logic        dcsr_en;
@@ -443,6 +449,9 @@ module ibex_cs_registers #(
       CSR_PMPADDR14: csr_rdata_int = pmp_addr_rdata[14];
       CSR_PMPADDR15: csr_rdata_int = pmp_addr_rdata[15];
 
+      // vxsat: P-extension saturation flag
+      CSR_VXSAT: csr_rdata_int = vxsat_q;
+
       CSR_DCSR: begin
         csr_rdata_int = dcsr_q;
         dbg_csr       = 1'b1;
@@ -635,6 +644,9 @@ module ibex_cs_registers #(
 
         // mtvec
         CSR_MTVEC: mtvec_en = 1'b1;
+
+        // vxsat
+        CSR_VXSAT: vxsat_en = 1'b1;   // TODO: Is this correct?
 
         CSR_DCSR: begin
           dcsr_d = csr_wdata_int;
@@ -961,6 +973,20 @@ module ibex_cs_registers #(
     .wr_en_i   (mtvec_en),
     .rd_data_o (mtvec_q),
     .rd_error_o(mtvec_err)
+  );
+
+  // VXSAT
+  ibex_csr #(
+    .Width     (1),   // TODO: This might have to be 32??
+    .ShadowCopy(1'b0),
+    .ResetValue(1'b0)
+  ) u_vxsat_csr (
+    .clk_i     (clk_i),
+    .rst_ni    (rst_ni),
+    .wr_data_i (vxsat_d),      // TODO
+    .wr_en_i   (vxsat_en),      // TODO
+    .rd_data_o (vxsat_q),      
+    .rd_error_o()
   );
 
   // DCSR

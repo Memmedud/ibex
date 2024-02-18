@@ -88,7 +88,17 @@ module ibex_alu_pext #(
 
   // Decode cross Add/Sub
   logic crossed;
-  assign crossed = sub[1] ^ sub[0];
+  always_comb begin
+    unique case(operator_i)
+      ZPN_RCRAS16,  ZPN_RCRSA16, 
+      ZPN_KCRAS16,  ZPN_KCRSA16,
+      ZPN_URCRAS16, ZPN_URCRSA16, 
+      ZPN_UKCRAS16, ZPN_UKCRSA16,
+      ZPN_CRAS16,   ZPN_CRSA16: crossed = 1'b1;
+
+      default: crossed = 1'b0;
+    endcase
+  end
 
   // Decode Halfs
   logic halved;
@@ -184,17 +194,16 @@ module ibex_alu_pext #(
     endcase
   end
 
-  // Calulate saturating result
-  logic[31:0] saturating_result;
-  logic[3:0]  saturated;
-
   // Decode saturation state
-  assign set_ov_o = |saturated;         // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
+  logic[3:0]  saturated;
+  assign set_ov_o = |saturated; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
   assign saturated = { ((adder_in_a3[7] ^ adder_tmp_b3[7]) ^ ~sub[1]) & (^adder_result3[8:7]), 
                        ((adder_in_a2[7] ^ adder_tmp_b2[7]) ^ ~sub[1]) & (^adder_result2[8:7]), 
                        ((adder_in_a1[7] ^ adder_tmp_b1[7]) ^ ~sub[0]) & (^adder_result1[8:7]), 
                        ((adder_in_a0[7] ^ adder_tmp_b0[7]) ^ ~sub[0]) & (^adder_result0[8:7]) };
-
+  
+  // Calulate saturating result
+  logic[31:0] saturating_result;
   always_comb begin
     unique case ({signed_ops_i, width32, width8})
 
@@ -414,7 +423,7 @@ module ibex_alu_pext #(
     assign operand_a_rev[i] = operand_a_i[31-i];
   end
 
-  // Prepare operands
+  // Prepare operands   // TODO: Support rounding as well
   logic[15:0]   shift_operand0, shift_operand1;
   logic[4:0]    shift_amt;
 
@@ -489,7 +498,7 @@ module ibex_alu_pext #(
   assign bc25 = negate[3] ? (~operand_a_i[25] & bc26) : (operand_a_i[25] & bc26);
   assign bc24 = negate[3] ? (~operand_a_i[24] & bc25) : (operand_a_i[24] & bc25);
 
-  assign bc23 =  width8 ? (negate[2] ? ~operand_a_i[23] : operand_a_i[23]) : (negate[2] ? (~operand_a_i[23] & bc24) : (operand_a_i[23] & bc24)); 
+  assign bc23 = width8 ? (negate[2] ? ~operand_a_i[23] : operand_a_i[23]) : (negate[2] ? (~operand_a_i[23] & bc24) : (operand_a_i[23] & bc24)); 
   assign bc22 = negate[2] ? (~operand_a_i[22] & bc23) : (operand_a_i[22] & bc23);
   assign bc21 = negate[2] ? (~operand_a_i[21] & bc22) : (operand_a_i[21] & bc22);
   assign bc20 = negate[2] ? (~operand_a_i[20] & bc21) : (operand_a_i[20] & bc21);
@@ -507,7 +516,7 @@ module ibex_alu_pext #(
   assign bc9  = negate[1] ? (~operand_a_i[9] & bc10)  : (operand_a_i[9]  & bc10);
   assign bc8  = negate[1] ? (~operand_a_i[8] & bc9)   : (operand_a_i[8]  & bc9);
 
-  assign bc7  =  width8 ? (negate[0] ? ~operand_a_i[7] : operand_a_i[7]) : (negate[0] ? (~operand_a_i[7] & bc8) : (operand_a_i[7] & bc8)); 
+  assign bc7  = width8 ? (negate[0] ? ~operand_a_i[7] : operand_a_i[7]) : (negate[0] ? (~operand_a_i[7] & bc8) : (operand_a_i[7] & bc8)); 
   assign bc6  = negate[0] ? (~operand_a_i[6] & bc7)   : (operand_a_i[6] & bc7);
   assign bc5  = negate[0] ? (~operand_a_i[5] & bc6)   : (operand_a_i[5] & bc6);
   assign bc4  = negate[0] ? (~operand_a_i[4] & bc5)   : (operand_a_i[4] & bc5);
@@ -684,7 +693,6 @@ module ibex_alu_pext #(
         ZPN_URSTAS16, ZPN_URSTSA16,
         ZPN_UKSTAS16, ZPN_UKSTSA16,
         ZPN_STAS16,   ZPN_STSA16: result_o = adder_result;
-
         
         // SIMD multiplication ops
         // 8x8       32x32         32x16          16x16      
@@ -717,7 +725,6 @@ module ibex_alu_pext #(
                                                   ZPN_KDMATT,
                                                   ZPN_KHM16,
                                                   ZPN_KHMX16: result_o = mult_result_i;
-
 
         // Comparison ops
         ZPN_CMPEQ16,  ZPN_CMPEQ8,
@@ -762,11 +769,11 @@ module ibex_alu_pext #(
         ZPN_SUNPKD831, ZPN_ZUNPKD831,
         ZPN_SUNPKD832, ZPN_ZUNPKD832: result_o = unpack_result;
 
-        // Paking ops
+        // Packing ops
         ZPN_PKBB16, ZPN_PKBT16,
         ZPN_PKTB16, ZPN_PKTT16: result_o = packing_result;
 
-        // INSB ops   // TODO
+        // INSB ops
         ZPN_INSB0, ZPN_INSB1,
         ZPN_INSB2, ZPN_INSB3: result_o = insb_result;
 

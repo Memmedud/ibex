@@ -172,6 +172,7 @@ module ibex_top import ibex_pkg::*; #(
   logic [RegFileDataWidth-1:0] rf_wdata_wb_ecc;
   logic [RegFileDataWidth-1:0] rf_rdata_a_ecc, rf_rdata_a_ecc_buf;
   logic [RegFileDataWidth-1:0] rf_rdata_b_ecc, rf_rdata_b_ecc_buf;
+  logic [RegFileDataWidth-1:0] rf_rdata_rd_ecc, rf_rdata_rd_ecc_buf;
 
   // Combined data and integrity for data and instruction busses
   logic [MemDataWidth-1:0]     data_wdata_core;
@@ -263,6 +264,11 @@ module ibex_top import ibex_pkg::*; #(
     .out_o(rf_rdata_b_ecc_buf)
   );
 
+  prim_buf #(.Width(RegFileDataWidth)) u_rf_rdata_rd_ecc_buf (
+    .in_i (rf_rdata_rd_ecc),
+    .out_o(rf_rdata_rd_ecc_buf)
+  );
+
 
   // ibex_core takes integrity and data bits together. Combine the separate integrity and data
   // inputs here.
@@ -342,6 +348,7 @@ module ibex_top import ibex_pkg::*; #(
     .rf_wdata_wb_ecc_o(rf_wdata_wb_ecc),
     .rf_rdata_a_ecc_i (rf_rdata_a_ecc_buf),
     .rf_rdata_b_ecc_i (rf_rdata_b_ecc_buf),
+    .rf_rdata_rd_ecc_i (rf_rdata_rd_ecc_buf),
 
     .ic_tag_req_o      (ic_tag_req),
     .ic_tag_write_o    (ic_tag_write),
@@ -436,6 +443,8 @@ module ibex_top import ibex_pkg::*; #(
       .rdata_a_o(rf_rdata_a_ecc),
       .raddr_b_i(rf_raddr_b),
       .rdata_b_o(rf_rdata_b_ecc),
+      .raddr_rd_i(rf_waddr_wb),     // Note: Write port 3 is always Rd
+      .rdata_rd_o(rf_rdata_rd_ecc),
       .waddr_a_i(rf_waddr_wb),
       .wdata_a_i(rf_wdata_wb_ecc),
       .we_a_i   (rf_we_wb),
@@ -461,6 +470,8 @@ module ibex_top import ibex_pkg::*; #(
       .rdata_a_o(rf_rdata_a_ecc),
       .raddr_b_i(rf_raddr_b),
       .rdata_b_o(rf_rdata_b_ecc),
+      .raddr_rd_i(rf_waddr_wb),     // Note: Write port 3 is always Rd
+      .rdata_rd_o(rf_rdata_rd_ecc),
       .waddr_a_i(rf_waddr_wb),
       .wdata_a_i(rf_wdata_wb_ecc),
       .we_a_i   (rf_we_wb),
@@ -486,6 +497,8 @@ module ibex_top import ibex_pkg::*; #(
       .rdata_a_o(rf_rdata_a_ecc),
       .raddr_b_i(rf_raddr_b),
       .rdata_b_o(rf_rdata_b_ecc),
+      .raddr_rd_i(rf_waddr_wb),     // Note: Write port 3 is always Rd
+      .rdata_rd_o(rf_rdata_rd_ecc),
       .waddr_a_i(rf_waddr_wb),
       .wdata_a_i(rf_wdata_wb_ecc),
       .we_a_i   (rf_we_wb),
@@ -761,6 +774,7 @@ module ibex_top import ibex_pkg::*; #(
       rf_wdata_wb_ecc,
       rf_rdata_a_ecc,
       rf_rdata_b_ecc,
+      rf_rdata_rd_ecc,
       ic_tag_req,
       ic_tag_write,
       ic_tag_addr,
@@ -815,6 +829,7 @@ module ibex_top import ibex_pkg::*; #(
     logic [RegFileDataWidth-1:0]  rf_wdata_wb_ecc_local;
     logic [RegFileDataWidth-1:0]  rf_rdata_a_ecc_local;
     logic [RegFileDataWidth-1:0]  rf_rdata_b_ecc_local;
+    logic [RegFileDataWidth-1:0]  rf_rdata_rd_ecc_local;
 
     logic [IC_NUM_WAYS-1:0]       ic_tag_req_local;
     logic                         ic_tag_write_local;
@@ -868,6 +883,7 @@ module ibex_top import ibex_pkg::*; #(
       rf_wdata_wb_ecc,
       rf_rdata_a_ecc,
       rf_rdata_b_ecc,
+      rf_rdata_rd_ecc,
       ic_tag_req,
       ic_tag_write,
       ic_tag_addr,
@@ -918,6 +934,7 @@ module ibex_top import ibex_pkg::*; #(
       rf_wdata_wb_ecc_local,
       rf_rdata_a_ecc_local,
       rf_rdata_b_ecc_local,
+      rf_rdata_rd_ecc_local,
       ic_tag_req_local,
       ic_tag_write_local,
       ic_tag_addr_local,
@@ -1026,6 +1043,7 @@ module ibex_top import ibex_pkg::*; #(
       .rf_wdata_wb_ecc_i      (rf_wdata_wb_ecc_local),
       .rf_rdata_a_ecc_i       (rf_rdata_a_ecc_local),
       .rf_rdata_b_ecc_i       (rf_rdata_b_ecc_local),
+      //.rf_rdata_rd_ecc_i       (rf_rdata_rd_ecc_local),   // TODO
 
       .ic_tag_req_i           (ic_tag_req_local),
       .ic_tag_write_i         (ic_tag_write_local),

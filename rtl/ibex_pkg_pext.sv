@@ -1,23 +1,14 @@
 package ibex_pkg_pext;
 
-  //////////////////
-  // Signed types //
-  //////////////////
+  //////////////////////
+  // Multiplier modes //
+  //////////////////////
   typedef enum logic[1:0] {
-    U16         = 0,
-    U8          = 1,
-    S16         = 2,
-    S8          = 3
-  } signed_type_e;
-
-  /////////////////////////
-  // Pext overflow types //
-  /////////////////////////
-  typedef enum logic[1:0] {
-    NONE            = 0,
-    HALVING         = 1,
-    SATURATING      = 2
-  } overflow_e;
+    M8x8, 
+    M16x16, 
+    M32x16, 
+    M32x32
+  } mult_pext_mode_e;
 
   ///////////////////////////
   // ALL P-ext instruxtion //

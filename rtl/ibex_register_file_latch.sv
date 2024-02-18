@@ -34,6 +34,11 @@ module ibex_register_file_latch #(
   input  logic [4:0]           raddr_b_i,
   output logic [DataWidth-1:0] rdata_b_o,
 
+  // TODO Add if
+  //Read port R3
+  input  logic [4:0]           raddr_rd_i,
+  output logic [DataWidth-1:0] rdata_rd_o,
+
   // Write port W1
   input  logic [4:0]           waddr_a_i,
   input  logic [DataWidth-1:0] wdata_a_i,
@@ -54,19 +59,21 @@ module ibex_register_file_latch #(
   logic [DataWidth-1:0] wdata_a_q;
 
   // internal addresses
-  logic [ADDR_WIDTH-1:0] raddr_a_int, raddr_b_int, waddr_a_int;
+  logic [ADDR_WIDTH-1:0] raddr_a_int, raddr_b_int, raddr_rd_int, waddr_a_int;
 
-  assign raddr_a_int = raddr_a_i[ADDR_WIDTH-1:0];
-  assign raddr_b_int = raddr_b_i[ADDR_WIDTH-1:0];
-  assign waddr_a_int = waddr_a_i[ADDR_WIDTH-1:0];
+  assign raddr_a_int  = raddr_a_i[ADDR_WIDTH-1:0];
+  assign raddr_b_int  = raddr_b_i[ADDR_WIDTH-1:0];
+  assign raddr_rd_int = raddr_rd_i[ADDR_WIDTH-1:0];
+  assign waddr_a_int  = waddr_a_i[ADDR_WIDTH-1:0];
 
   logic clk_int;
 
   //////////
   // READ //
   //////////
-  assign rdata_a_o = mem[raddr_a_int];
-  assign rdata_b_o = mem[raddr_b_int];
+  assign rdata_a_o  = mem[raddr_a_int];
+  assign rdata_b_o  = mem[raddr_b_int];
+  assign rdata_rd_o = mem[raddr_rd_int];
 
   ///////////
   // WRITE //

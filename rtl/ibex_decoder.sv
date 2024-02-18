@@ -1142,6 +1142,7 @@ module ibex_decoder #(
       /////////////
       // P-ext   //
       /////////////
+      // TODO: Add shortcut for Pext alu for hopefully shorter critical path...
       OPCODE_P: begin
         if (RV32P == RV32PZpn) alu_operator_o = ZPN_INSTR;
       end

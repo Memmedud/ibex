@@ -70,6 +70,7 @@ module ibex_id_stage #(
   input  logic                      lsu_resp_valid_i, // LSU has valid output, or is done
   // ALU
   output ibex_pkg::alu_op_e         alu_operator_ex_o,
+  output ibex_pkg_pext::zpn_op_e    zpn_operator_ex_o,
   output logic [31:0]               alu_operand_a_ex_o,
   output logic [31:0]               alu_operand_b_ex_o,
 
@@ -156,6 +157,7 @@ module ibex_id_stage #(
   input  logic [31:0]               rf_rdata_a_i,
   output logic [4:0]                rf_raddr_b_o,
   input  logic [31:0]               rf_rdata_b_i,
+  input  logic [31:0]               rf_rdata_rd_i,
   output logic                      rf_ren_a_o,
   output logic                      rf_ren_b_o,
 
@@ -507,6 +509,20 @@ module ibex_id_stage #(
     .jump_in_dec_o  (jump_in_dec),
     .branch_in_dec_o(branch_in_dec)
   );
+
+  if (RV32P == RV32PZpn) begin
+    ibex_decoder_pext decoder_pext_i (
+      .instr_rdata_i        (instr_rdata_i),
+      .zpn_operator_o       (),
+      .zpn_illegal_insn_o   (),
+      .imm_operand_o        (),
+      .imm_instr_o          (),
+      .zpn_mult_en_o        (),
+      .width8_o             (),
+      .width32_o            (),
+      .signed_ops_i         ()
+    );
+  end
 
   /////////////////////////////////
   // CSR-related pipeline flushes //

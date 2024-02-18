@@ -81,6 +81,7 @@ module ibex_core import ibex_pkg::*; #(
   output logic [RegFileDataWidth-1:0]  rf_wdata_wb_ecc_o,
   input  logic [RegFileDataWidth-1:0]  rf_rdata_a_ecc_i,
   input  logic [RegFileDataWidth-1:0]  rf_rdata_b_ecc_i,
+  input  logic [RegFileDataWidth-1:0]  rf_rdata_rd_ecc_i,
 
   // RAMs interface
   output logic [IC_NUM_WAYS-1:0]       ic_tag_req_o,
@@ -231,6 +232,7 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] rf_rdata_a;
   logic [4:0]  rf_raddr_b;
   logic [31:0] rf_rdata_b;
+  logic [31:0] rf_rdata_rd;
   logic        rf_ren_a;
   logic        rf_ren_b;
   logic [4:0]  rf_waddr_wb;
@@ -253,6 +255,7 @@ module ibex_core import ibex_pkg::*; #(
   alu_op_e     alu_operator_ex;
   logic [31:0] alu_operand_a_ex;
   logic [31:0] alu_operand_b_ex;
+  logic [31:0] alu_operand_rd_ex;
 
   logic [31:0] bt_a_operand;
   logic [31:0] bt_b_operand;
@@ -582,9 +585,10 @@ module ibex_core import ibex_pkg::*; #(
     .ex_valid_i      (ex_valid),
     .lsu_resp_valid_i(lsu_resp_valid),
 
-    .alu_operator_ex_o (alu_operator_ex),
-    .alu_operand_a_ex_o(alu_operand_a_ex),
-    .alu_operand_b_ex_o(alu_operand_b_ex),
+    .alu_operator_ex_o  (alu_operator_ex),
+    .alu_operand_a_ex_o (alu_operand_a_ex),
+    .alu_operand_b_ex_o (alu_operand_b_ex),
+    .alu_operand_rd_ex_o(alu_operand_rd_ex),
 
     .imd_val_q_ex_o (imd_val_q_ex),
     .imd_val_d_ex_i (imd_val_d_ex),
@@ -661,6 +665,7 @@ module ibex_core import ibex_pkg::*; #(
     .rf_rdata_a_i      (rf_rdata_a),
     .rf_raddr_b_o      (rf_raddr_b),
     .rf_rdata_b_i      (rf_rdata_b),
+    .rf_rdata_rd_i     (rf_rdata_rd),
     .rf_ren_a_o        (rf_ren_a),
     .rf_ren_b_o        (rf_ren_b),
     .rf_waddr_id_o     (rf_waddr_id),
@@ -706,6 +711,7 @@ module ibex_core import ibex_pkg::*; #(
     .alu_operator_i         (alu_operator_ex),
     .alu_operand_a_i        (alu_operand_a_ex),
     .alu_operand_b_i        (alu_operand_b_ex),
+    .alu_operand_rd_i       (alu_operand_rd_ex),
     .alu_instr_first_cycle_i(instr_first_cycle_id),
 
     // Branch target ALU signal from ID stage
@@ -878,11 +884,18 @@ module ibex_core import ibex_pkg::*; #(
       .data_o    (),
       .syndrome_o(),
       .err_o     (rf_ecc_err_b)
-    );
+    );    
+    /*prim_secded_inv_39_32_dec regfile_ecc_dec_rd (
+      .data_i    (rf_rdata_rd_ecc_i),
+      .data_o    (),
+      .syndrome_o(),
+      .err_o     (rf_ecc_err_rd)
+    );*/
 
     // Assign read outputs - no error correction, just trigger an alert
-    assign rf_rdata_a = rf_rdata_a_ecc_i[31:0];
-    assign rf_rdata_b = rf_rdata_b_ecc_i[31:0];
+    assign rf_rdata_a  = rf_rdata_a_ecc_i[31:0];
+    assign rf_rdata_b  = rf_rdata_b_ecc_i[31:0];
+    //assign rf_rdata_rd = rf_rdata_rd_ecc_i[31:0];
 
     // Calculate errors - qualify with WB forwarding to avoid xprop into the alert signal
     assign rf_ecc_err_a_id = |rf_ecc_err_a & rf_ren_a & ~rf_rd_a_wb_match;
@@ -902,6 +915,7 @@ module ibex_core import ibex_pkg::*; #(
     assign rf_wdata_wb_ecc_o       = rf_wdata_wb;
     assign rf_rdata_a              = rf_rdata_a_ecc_i;
     assign rf_rdata_b              = rf_rdata_b_ecc_i;
+    assign rf_rdata_rd             = rf_rdata_rd_ecc_i;
     assign rf_ecc_err_comb         = 1'b0;
   end
 

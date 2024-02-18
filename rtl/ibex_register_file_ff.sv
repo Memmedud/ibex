@@ -12,6 +12,7 @@
  */
 module ibex_register_file_ff #(
   parameter bit                   RV32E             = 0,
+  parameter ibex_pkg::rv32p_e     RV32P             = ibex_pkg::RV32PNone,
   parameter int unsigned          DataWidth         = 32,
   parameter bit                   DummyInstructions = 0,
   parameter bit                   WrenCheck         = 0,
@@ -33,6 +34,10 @@ module ibex_register_file_ff #(
   input  logic [4:0]           raddr_b_i,
   output logic [DataWidth-1:0] rdata_b_o,
 
+  // TODO Add if
+  //Read port R3
+  input  logic [4:0]           raddr_rd_i,
+  output logic [DataWidth-1:0] rdata_rd_o,
 
   // Write port W1
   input  logic [4:0]           waddr_a_i,
@@ -130,8 +135,9 @@ module ibex_register_file_ff #(
     assign rf_reg[0] = WordZeroVal;
   end
 
-  assign rdata_a_o = rf_reg[raddr_a_i];
-  assign rdata_b_o = rf_reg[raddr_b_i];
+  assign rdata_a_o  = rf_reg[raddr_a_i];
+  assign rdata_b_o  = rf_reg[raddr_b_i];
+  assign rdata_rd_o = rf_reg[raddr_rd_i];
 
   // Signal not used in FF register file
   logic unused_test_en;

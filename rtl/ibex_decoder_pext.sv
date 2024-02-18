@@ -14,11 +14,10 @@ module ibex_decoder_pext #(
   output ibex_pkg_pext::zpn_op_e    zpn_operator_o,
   output logic                      zpn_illegal_insn_o,
 
-  output ibex_pkg_pext::mult_mode_e zpn_mult_mode_o,
   output logic                      zpn_mult_en_o,
 
-  //output logic[4:0]                 imm_operand_o,
-  //output logic                      imm_instr_o,
+  output logic[4:0]                 imm_operand_o,
+  output logic                      imm_instr_o,
 
   output logic                      width8_o,
   output logic                      width32_o,
@@ -67,7 +66,7 @@ module ibex_decoder_pext #(
 
       end
 
-      // Unsigned 32-bit    // TODO: Probably add mults here as well
+      // Unsigned 32-bit
       ZPN_UKADDW,   ZPN_URADDW,
       ZPN_UKSUBW,   ZPN_URSUBW,
       ZPN_UCLIP32,  ZPN_KSLLW,  
@@ -79,7 +78,7 @@ module ibex_decoder_pext #(
 
       end
 
-      // Signed 16-bit    // TODO Add mults
+      // Signed 16-bit
       ZPN_RADD16,   ZPN_KADD16,
       ZPN_ADD16,    ZPN_RSUB16,
       ZPN_KSUB16,   ZPN_SUB16,    
@@ -104,7 +103,7 @@ module ibex_decoder_pext #(
 
       end
 
-      // Unsigned 16-bit  // TODO Add mults
+      // Unsigned 16-bit
       ZPN_URADD16,  ZPN_UKADD16,
       ZPN_URSUB16,  ZPN_UKSUB16,
       ZPN_UKADDH,   ZPN_UKSUBH,
@@ -125,7 +124,7 @@ module ibex_decoder_pext #(
 
       end
 
-      // Signed 8-bit  // TODO Add mults
+      // Signed 8-bit
       ZPN_RADD8,   ZPN_KADD8,
       ZPN_ADD8,    ZPN_RSUB8,
       ZPN_KSUB8,   ZPN_SUB8,    
@@ -143,7 +142,7 @@ module ibex_decoder_pext #(
 
       end
 
-      // Unsiged 8-bit  // TODO Add mults
+      // Unsiged 8-bit
       ZPN_URADD8,  ZPN_UKADD8,
       ZPN_URSUB8,  ZPN_UKSUB8,
       ZPN_UCMPLT8, ZPN_UCMPLE8,
