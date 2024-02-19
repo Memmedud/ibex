@@ -15,11 +15,14 @@ module ibex_alu_pext #(
   parameter SAT_VAL_S32L  = 32'h8000_0000,  // -2147483648
   parameter SAT_VAL_S32H  = 32'h7fff_ffff  // 2147483647
 ) (
-  input  logic [31:0]                   operand_a_i,
-  input  logic [31:0]                   operand_b_i,
-  input  logic                          enable_i,
+  input  logic                          clk_i,
+  input  logic                          rst_ni,
 
   input  ibex_pkg_pext::zpn_op_e        operator_i,
+  input  logic [31:0]                   operand_a_i,
+  input  logic [31:0]                   operand_b_i,
+  input  logic [31:0]                   operand_rd_i, // Only used for mult
+  input  logic                          enable_i,
 
   input  logic                          width8_i,
   input  logic                          width32_i,
@@ -28,9 +31,8 @@ module ibex_alu_pext #(
   input  logic [4:0]                    imm_val_i,
   input  logic                          imm_instr_i,
 
-  input  logic [31:0]                   mult_result_i,
-
   output logic [31:0]                   result_o,
+  output logic                          valid_o,
   output logic                          set_ov_o
 );
   import ibex_pkg_pext::*;
@@ -38,6 +40,8 @@ module ibex_alu_pext #(
   logic width8, width32;
   assign width8  = width8_i;
   assign width32 = width32_i;
+
+  // TODO: add decoding for when multiplier should be used
 
   ///////////
   // Adder //
@@ -272,10 +276,22 @@ module ibex_alu_pext #(
   ////////////////
   // Multiplier //
   ////////////////
-  // Im afraid
-  // Sorta donee??
-  // TODO: Add accumulator here
-  
+  logic[31:0] mult_result;
+  logic mult_valid;
+  ibex_mult_pext mult_pext_i (
+    .clk_i          (clk_i),
+    .rst_ni         (rst_ni),
+    .mult_en_i      (1'b1),
+    .operator_i     (operator_i),
+    .op_a_i         (operand_a_i),
+    .op_b_i         (operand_b_i),
+    .rd_val_i       (operand_rd_i),
+    .mult_result_o  (mult_result),
+    .valid_o        (mult_valid)
+  );
+
+  assign valid_o = mult_valid; // TODO
+
 
 
   ////////////////
@@ -387,6 +403,7 @@ module ibex_alu_pext #(
   //////////
   // CLIP //
   //////////
+  // TODDO
   logic[31:0]   clip_result;
 
   //logic[4:0]    msb;
@@ -724,7 +741,7 @@ module ibex_alu_pext #(
                                                   ZPN_KDMABT,
                                                   ZPN_KDMATT,
                                                   ZPN_KHM16,
-                                                  ZPN_KHMX16: result_o = mult_result_i;
+                                                  ZPN_KHMX16: result_o = mult_result;
 
         // Comparison ops
         ZPN_CMPEQ16,  ZPN_CMPEQ8,

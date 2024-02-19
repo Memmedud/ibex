@@ -263,6 +263,15 @@ module ibex_core import ibex_pkg::*; #(
   logic [31:0] alu_adder_result_ex;    // Used to forward computed address to LSU
   logic [31:0] result_ex;
 
+  // Pext signals
+  ibex_pkg_pext::zpn_op_e   zpn_operator_ex;
+  logic [4:0]               zpn_imm_val;
+  logic                     zpn_imm_instr;
+  logic                     zpn_width32;
+  logic                     zpn_width8;
+  logic                     zpn_signed_ops;
+  logic                     zpn_enable;
+
   // Multiplier Control
   logic        mult_en_ex;
   logic        div_en_ex;
@@ -585,10 +594,18 @@ module ibex_core import ibex_pkg::*; #(
     .ex_valid_i      (ex_valid),
     .lsu_resp_valid_i(lsu_resp_valid),
 
-    .alu_operator_ex_o  (alu_operator_ex),
-    .alu_operand_a_ex_o (alu_operand_a_ex),
-    .alu_operand_b_ex_o (alu_operand_b_ex),
-    .alu_operand_rd_ex_o(alu_operand_rd_ex),
+    .alu_operator_ex_o    (alu_operator_ex),
+    .alu_operand_a_ex_o   (alu_operand_a_ex),
+    .alu_operand_b_ex_o   (alu_operand_b_ex),
+
+    .zpn_operator_ex_o    (zpn_operator_ex),
+    .zpn_imm_val_o        (zpn_imm_val),
+    .zpn_imm_instr_o      (zpn_imm_instr),
+    .alu_operand_rd_ex_o  (alu_operand_rd_ex),
+    .zpn_width32_o        (zpn_width32),
+    .zpn_width8_o         (zpn_width8),
+    .zpn_signed_ops_o     (zpn_signed_ops),
+    .zpn_enable_o         (zpn_enable),
 
     .imd_val_q_ex_o (imd_val_q_ex),
     .imd_val_d_ex_i (imd_val_d_ex),
@@ -698,6 +715,8 @@ module ibex_core import ibex_pkg::*; #(
   // for RVFI only
   assign unused_illegal_insn_id = illegal_insn_id;
 
+  logic vxsat_set;
+
   ibex_ex_block #(
     .RV32M          (RV32M),
     .RV32B          (RV32B),
@@ -729,6 +748,16 @@ module ibex_core import ibex_pkg::*; #(
     .multdiv_operand_b_i  (multdiv_operand_b_ex),
     .multdiv_ready_id_i   (multdiv_ready_id),
     .data_ind_timing_i    (data_ind_timing),
+
+    // Pext signals
+    .zpn_operator_i       (zpn_operator_ex),
+    .zpn_width32_i        (zpn_width32),
+    .zpn_width8_i         (zpn_width8),
+    .zpn_signed_ops_i     (zpn_signed_ops),
+    .zpn_imm_val_i        (zpn_imm_val),
+    .zpn_imm_instr_i      (zpn_imm_instr),
+    .vxsat_set_o          (vxsat_set),
+    .zpn_enable_i         (zpn_enable),
 
     // Intermediate value register
     .imd_val_we_o(imd_val_we_ex),
@@ -1034,7 +1063,8 @@ module ibex_core import ibex_pkg::*; #(
     .PMPNumRegions    (PMPNumRegions),
     .RV32E            (RV32E),
     .RV32M            (RV32M),
-    .RV32B            (RV32B)
+    .RV32B            (RV32B),
+    .RV32P            (RV32P)
   ) cs_registers_i (
     .clk_i (clk_i),
     .rst_ni(rst_ni),
@@ -1098,6 +1128,7 @@ module ibex_core import ibex_pkg::*; #(
     .icache_enable_o      (icache_enable),
     .csr_shadow_err_o     (csr_shadow_err),
     .ic_scr_key_valid_i   (ic_scr_key_valid_i),
+    .vxsat_set_i          (vxsat_set),
 
     .csr_save_if_i     (csr_save_if),
     .csr_save_id_i     (csr_save_id),

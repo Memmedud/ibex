@@ -30,6 +30,7 @@ filesets:
       - rtl/ibex_id_stage.sv
       - rtl/ibex_if_stage.sv
       - rtl/ibex_load_store_unit.sv
+      - rtl/ibex_mult_pext.sv
       - rtl/ibex_multdiv_fast.sv
       - rtl/ibex_multdiv_slow.sv
       - rtl/ibex_prefetch_buffer.sv

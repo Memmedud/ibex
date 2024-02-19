@@ -14,8 +14,6 @@ module ibex_decoder_pext #(
   output ibex_pkg_pext::zpn_op_e    zpn_operator_o,
   output logic                      zpn_illegal_insn_o,
 
-  output logic                      zpn_mult_en_o,
-
   output logic[4:0]                 imm_operand_o,
   output logic                      imm_instr_o,
 
@@ -181,7 +179,7 @@ module ibex_decoder_pext #(
   assign subf5  = instr[24:20]; 
 
   always_comb begin
-    illegal_insn_o = 1'b0;
+    zpn_illegal_insn_o = 1'b0;
 
     unique case (funct3)
       3'b000: begin
@@ -260,11 +258,11 @@ module ibex_decoder_pext #(
           // Min/Max
           // Min/Max ops
           7'b100_0000: zpn_operator_o = ZPN_SMIN16;
-          7'b010_0001: zpn_operator_o = ZPN_SMAX16;
+          7'b100_0001: zpn_operator_o = ZPN_SMAX16;
           7'b100_1000: zpn_operator_o = ZPN_UMIN16;
           7'b100_1001: zpn_operator_o = ZPN_UMAX16;
           7'b100_0100: zpn_operator_o = ZPN_SMIN8;
-          7'b010_0101: zpn_operator_o = ZPN_SMAX8;
+          7'b100_0101: zpn_operator_o = ZPN_SMAX8;
           7'b100_1100: zpn_operator_o = ZPN_UMIN8;
           7'b100_1101: zpn_operator_o = ZPN_UMAX8;
 
@@ -321,9 +319,9 @@ module ibex_decoder_pext #(
               5'b1_0111: zpn_operator_o = ZPN_ZUNPKD832;
 
               // ABS
-              5'b1_0000: zpn_operator_o = KABS8; 
-              5'b1_0001: zpn_operator_o = KABS16;
-              5'b1_0100: zpn_operator_o = KABSW; 
+              5'b1_0000: zpn_operator_o = ZPN_KABS8; 
+              5'b1_0001: zpn_operator_o = ZPN_KABS16;
+              5'b1_0100: zpn_operator_o = ZPN_KABSW; 
 
               default: ;
             endcase
@@ -480,7 +478,7 @@ module ibex_decoder_pext #(
         endcase
       end
 
-      default: illegal_insn_o = 1'b1;
+      default: zpn_illegal_insn_o = 1'b1;
     endcase
   end
 

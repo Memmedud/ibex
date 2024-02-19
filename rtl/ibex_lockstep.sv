@@ -73,6 +73,7 @@ module ibex_lockstep import ibex_pkg::*; #(
   input  logic [RegFileDataWidth-1:0]  rf_wdata_wb_ecc_i,
   input  logic [RegFileDataWidth-1:0]  rf_rdata_a_ecc_i,
   input  logic [RegFileDataWidth-1:0]  rf_rdata_b_ecc_i,
+  input  logic [RegFileDataWidth-1:0]  rf_rdata_rd_ecc_i,
 
   input  logic [IC_NUM_WAYS-1:0]       ic_tag_req_i,
   input  logic                         ic_tag_write_i,
@@ -179,6 +180,7 @@ module ibex_lockstep import ibex_pkg::*; #(
     logic                        data_err;
     logic [RegFileDataWidth-1:0] rf_rdata_a_ecc;
     logic [RegFileDataWidth-1:0] rf_rdata_b_ecc;
+    logic [RegFileDataWidth-1:0] rf_rdata_rd_ecc;
     logic                        irq_software;
     logic                        irq_timer;
     logic                        irq_external;
@@ -206,6 +208,7 @@ module ibex_lockstep import ibex_pkg::*; #(
   assign shadow_inputs_in.data_err         = data_err_i;
   assign shadow_inputs_in.rf_rdata_a_ecc   = rf_rdata_a_ecc_i;
   assign shadow_inputs_in.rf_rdata_b_ecc   = rf_rdata_b_ecc_i;
+  assign shadow_inputs_in.rf_rdata_rd_ecc  = rf_rdata_rd_ecc_i;
   assign shadow_inputs_in.irq_software     = irq_software_i;
   assign shadow_inputs_in.irq_timer        = irq_timer_i;
   assign shadow_inputs_in.irq_external     = irq_external_i;
@@ -380,6 +383,7 @@ module ibex_lockstep import ibex_pkg::*; #(
     .rf_wdata_wb_ecc_o   (shadow_outputs_d.rf_wdata_wb_ecc),
     .rf_rdata_a_ecc_i    (shadow_inputs_q[0].rf_rdata_a_ecc),
     .rf_rdata_b_ecc_i    (shadow_inputs_q[0].rf_rdata_b_ecc),
+    .rf_rdata_rd_ecc_i   (shadow_inputs_q[0].rf_rdata_rd_ecc),
 
     .ic_tag_req_o        (shadow_outputs_d.ic_tag_req),
     .ic_tag_write_o      (shadow_outputs_d.ic_tag_write),

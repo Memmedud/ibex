@@ -74,6 +74,15 @@ module ibex_id_stage #(
   output logic [31:0]               alu_operand_a_ex_o,
   output logic [31:0]               alu_operand_b_ex_o,
 
+  // Pext specific
+  output logic [4:0]                zpn_imm_val_o,
+  output logic                      zpn_imm_instr_o,
+  output logic [31:0]               alu_operand_rd_ex_o,
+  output logic                      zpn_width32_o,
+  output logic                      zpn_width8_o,
+  output logic                      zpn_signed_ops_o,
+  output logic                      zpn_enable_o,
+
   // Multicycle Operation Stage Register
   input  logic [1:0]                imd_val_we_ex_i,
   input  logic [33:0]               imd_val_d_ex_i[2],
@@ -259,6 +268,7 @@ module ibex_id_stage #(
 
   logic [31:0] rf_rdata_a_fwd;
   logic [31:0] rf_rdata_b_fwd;
+  logic [31:0] rf_rdata_rd_fwd;
 
   // ALU Control
   alu_op_e     alu_operator;
@@ -495,6 +505,8 @@ module ibex_id_stage #(
     .multdiv_operator_o   (multdiv_operator),
     .multdiv_signed_mode_o(multdiv_signed_mode),
 
+    .zpn_enable_o         (zpn_enable_o),
+
     // CSRs
     .csr_access_o(csr_access_o),
     .csr_op_o    (csr_op_o),
@@ -513,14 +525,13 @@ module ibex_id_stage #(
   if (RV32P == RV32PZpn) begin
     ibex_decoder_pext decoder_pext_i (
       .instr_rdata_i        (instr_rdata_i),
-      .zpn_operator_o       (),
+      .zpn_operator_o       (zpn_operator_ex_o),
       .zpn_illegal_insn_o   (),
-      .imm_operand_o        (),
-      .imm_instr_o          (),
-      .zpn_mult_en_o        (),
-      .width8_o             (),
-      .width32_o            (),
-      .signed_ops_i         ()
+      .imm_operand_o        (zpn_imm_val_o),
+      .imm_instr_o          (zpn_imm_instr_o),
+      .width8_o             (zpn_width8_o),
+      .width32_o            (zpn_width32_o),
+      .signed_ops_o         (zpn_signed_ops_o)
     );
   end
 
@@ -685,6 +696,7 @@ module ibex_id_stage #(
   assign alu_operator_ex_o           = alu_operator;
   assign alu_operand_a_ex_o          = alu_operand_a;
   assign alu_operand_b_ex_o          = alu_operand_b;
+  assign alu_operand_rd_ex_o         = rf_rdata_rd_fwd;
 
   assign mult_en_ex_o                = mult_en_id;
   assign div_en_ex_o                 = div_en_id;
@@ -1056,8 +1068,9 @@ module ibex_id_stage #(
 
     // No data forwarding without writeback stage so always take source register data direct from
     // register file
-    assign rf_rdata_a_fwd = rf_rdata_a_i;
-    assign rf_rdata_b_fwd = rf_rdata_b_i;
+    assign rf_rdata_a_fwd  = rf_rdata_a_i;
+    assign rf_rdata_b_fwd  = rf_rdata_b_i;
+    assign rf_rdata_rd_fwd = rf_rdata_rd_i;
 
     assign rf_rd_a_wb_match_o = 1'b0;
     assign rf_rd_b_wb_match_o = 1'b0;

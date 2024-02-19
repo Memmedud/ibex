@@ -15,10 +15,6 @@ module ibex_mult_pext (
 
   input  ibex_pkg_pext::zpn_op_e    operator_i,
 
-  input  logic                      width32_i,
-  input  logic                      width8_i,
-  input  logic                      signed_ops_i,
-
   input  logic[31:0]                op_a_i,
   input  logic[31:0]                op_b_i,
   input  logic[31:0]                rd_val_i,
@@ -97,9 +93,6 @@ module ibex_mult_pext (
 
   logic[23:0] unused_rounding;
   assign unused_rounding = rounding_mask;
-
-  logic[2:0] unused_test;
-  assign unused_test = {width32_i, width8_i, signed_ops_i};
 
 
   // Preprocess operands
@@ -232,6 +225,9 @@ module ibex_mult_pext (
   assign mult_sum_32x32 = {mult_sum_32x16 + { {16{mult_accum_val[31]}}, mult_accum_val}};    // TODO: Make sure mult_accum is on form {16'h0000, 16 MSB of LSBs}
   assign mult_sum_32x32_MSW = mult_sum_32x32[47:16];    // USE alu adder for this
 
+  logic[15:0] unused_32x32sum;
+  assign unused_32x32sum = mult_sum_32x32[15:0];
+
 
   ////////////////
   // Saturation //
@@ -248,30 +244,30 @@ module ibex_mult_pext (
     sat_ones  = {mult_ker1_op_a1[7] & mult_ker1_op_b0[7], mult_ker1_op_a0[7] & mult_ker1_op_b0[7], 
                  mult_ker0_op_a1[7] & mult_ker0_op_b0[7], mult_ker0_op_a0[7] & mult_ker0_op_b0[7]};
 
-    unique case({width32_i, width8_i})    // Saturation mults are signed
-      2'b10  :   saturated = {sat_ones[3] & sat_zeros[3], 3'b000};
-      2'b01  :   saturated = {sat_ones[3] & sat_zeros[3], sat_ones[2] & sat_zeros[2], 
-                              sat_ones[1] & sat_zeros[1], sat_ones[0] & sat_zeros[0]};
-      default:   saturated = {sat_ones[3] & sat_zeros[3], 1'b0, sat_ones[1] & sat_zeros[1], 1'b0};
+    unique case(mult_mode)    // Saturation mults are signed    // TODO: Fix for M32x16
+      M32x32: saturated = {sat_ones[3] & sat_zeros[3], 3'b000};
+      M8x8  : saturated = {sat_ones[3] & sat_zeros[3], sat_ones[2] & sat_zeros[2], 
+                           sat_ones[1] & sat_zeros[1], sat_ones[0] & sat_zeros[0]};
+      M16x16: saturated = {sat_ones[3] & sat_zeros[3], 1'b0, sat_ones[1] & sat_zeros[1], 1'b0};
+      M32x16: saturated = 4'b0000;
     endcase
   end
 
   // Generate Saturating results
   logic[31:0] mult_sat_result;
 
-  //assign mult_sat_result = {saturated[3] ? }
-
   always_comb begin
-    unique case({signed_ops_i, width32_i, width8_i})                                              
-      3'b101 : mult_sat_result = {saturated[3] ? 8'h7f : mult_sum_8x8_3[14:7], 
-                                  saturated[2] ? 8'h7f : mult_sum_8x8_2[14:7],
-                                  saturated[1] ? 8'h7f : mult_sum_8x8_1[14:7],
-                                  saturated[0] ? 8'h7f : mult_sum_8x8_0[14:7]};
+    unique case(mult_mode)                                              
+      M8x8  : mult_sat_result = {saturated[3] ? 8'h7f : mult_sum_8x8_3[14:7], 
+                                 saturated[1] ? 8'h7f : mult_sum_8x8_1[14:7],
+                                 saturated[2] ? 8'h7f : mult_sum_8x8_2[14:7],
+                                 saturated[0] ? 8'h7f : mult_sum_8x8_0[14:7]};
 
-      3'b100 : mult_sat_result = {(saturated[3] & saturated[2]) ? 16'h7fff : mult_ker0_sum[30:15], // TODO this works for now
-                                  (saturated[1] & saturated[0]) ? 16'h7fff : mult_ker1_sum[30:15]};
+      M16x16: mult_sat_result = {(saturated[3] & saturated[2]) ? 16'h7fff : mult_ker0_sum[30:15], // TODO this works for now
+                                 (saturated[1] & saturated[0]) ? 16'h7fff : mult_ker1_sum[30:15]};
 
-      default: mult_sat_result = saturated[3] ? 32'h7fff_ffff: mult_sum_32x32_MSW;
+      M32x32: mult_sat_result = saturated[3] ? 32'h7fff_ffff: mult_sum_32x32_MSW;
+      M32x16: mult_sat_result = '0;
     endcase
   end
 

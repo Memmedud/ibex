@@ -41,6 +41,16 @@ module ibex_ex_block #(
   input  logic                  multdiv_ready_id_i,
   input  logic                  data_ind_timing_i,
 
+  // Pext signals
+  input  ibex_pkg_pext::zpn_op_e  zpn_operator_i,
+  input  logic                    zpn_width32_i,
+  input  logic                    zpn_width8_i,
+  input  logic                    zpn_signed_ops_i,
+  input  logic[4:0]               zpn_imm_val_i,
+  input  logic                    zpn_imm_instr_i,
+  output logic                    vxsat_set_o,
+  input  logic                    zpn_enable_i,
+
   // intermediate val reg
   output logic [1:0]            imd_val_we_o,
   output logic [33:0]           imd_val_d_o[2],
@@ -115,9 +125,10 @@ module ibex_ex_block #(
   // ALU //
   /////////
 
+  logic[31:0]     alu_result_raw, adder_result_raw;
+  logic[33:0]     adder_result_ext_raw;
   ibex_alu #(
-    .RV32B(RV32B),
-    .RV32P(RV32P)
+    .RV32B(RV32B)
   ) alu_i (
     .operator_i         (alu_operator_i),
     .operand_a_i        (alu_operand_a_i),
@@ -129,26 +140,41 @@ module ibex_ex_block #(
     .multdiv_operand_a_i(multdiv_alu_operand_a),
     .multdiv_operand_b_i(multdiv_alu_operand_b),
     .multdiv_sel_i      (multdiv_sel),
-    .adder_result_o     (alu_adder_result_ex_o),
-    .adder_result_ext_o (alu_adder_result_ext),
-    .result_o           (alu_result),
+    .adder_result_o     (adder_result_raw),
+    .adder_result_ext_o (adder_result_ext_raw),
+    .result_o           (alu_result_raw),
     .comparison_result_o(alu_cmp_result),
     .is_equal_result_o  (alu_is_equal_result)
   );
 
-  ibex_alu_pext alu_pext_i (
-    .operand_a_i        (alu_operand_a_i),
-    .operand_b_i        (alu_operand_b_i),
-    .enable_i           (),
-    .operator_i         (zpn_operator_i),
-    .width8_i           (),
-    .width32_i          (),
-    .signed_ops_i       (),
-    .imm_val_i          (),
-    .imm_instr_i        (),
-    .result_o           (),
-    .set_ov_o           ()
-  );
+  logic[31:0]     pext_result;
+  if (RV32P == RV32PZpn) begin : gen_pext
+    ibex_alu_pext alu_pext_i (
+      .clk_i              (clk_i),
+      .rst_ni             (rst_ni),
+      .operator_i         (zpn_operator_i),
+      .operand_a_i        (alu_operand_a_i),
+      .operand_b_i        (alu_operand_b_i),
+      .operand_rd_i       (alu_operand_rd_i),
+      .enable_i           (zpn_enable_i),
+      .width8_i           (zpn_width8_i),
+      .width32_i          (zpn_width32_i),
+      .signed_ops_i       (zpn_signed_ops_i),
+      .imm_val_i          (zpn_imm_val_i),
+      .imm_instr_i        (zpn_imm_instr_i),
+      .result_o           (pext_result),
+      .valid_o            (),
+      .set_ov_o           (vxsat_set_o)
+    );
+  end
+  else begin
+    assign pext_result = '0;
+  end
+
+  assign alu_result             = zpn_enable_i ? pext_result : alu_result_raw;
+  assign alu_adder_result_ext   = zpn_enable_i ? {1'b0, pext_result, 1'b1} : adder_result_ext_raw;
+  assign alu_adder_result_ex_o  = zpn_enable_i ? pext_result : adder_result_raw;
+
 
   ////////////////
   // Multiplier //
@@ -207,18 +233,6 @@ module ibex_ex_block #(
       .multdiv_result_o  (multdiv_result)
     );
   end
-
-  ibex_mult_pext mult_pext_i (
-    .clk_i                (clk_i),
-    .rst_ni               (rst_ni),
-    .mult_en_i            (),
-    .operator_i           (zpn_operator_i),
-    .op_a_i               (alu_operand_a_i),
-    .op_b_i               (alu_operand_b_i),
-    .rd_val_i             (alu_operand_rd_i),
-    .mult_result_o        (),
-    .valid_o              ()
-  );
 
   // Multiplier/divider may require multiple cycles. The ALU output is valid in the same cycle
   // unless the intermediate result register is being written (which indicates this isn't the

@@ -24,7 +24,7 @@ module ibex_cs_registers #(
   parameter bit               RV32E             = 0,
   parameter ibex_pkg::rv32m_e RV32M             = ibex_pkg::RV32MFast,
   parameter ibex_pkg::rv32b_e RV32B             = ibex_pkg::RV32BNone,
-  parameter ibex_pkg::rv32p_r RV32P             = ibex_pkg::RV32PNone
+  parameter ibex_pkg::rv32p_e RV32P             = ibex_pkg::RV32PNone
 ) (
   // Clock and Reset
   input  logic                 clk_i,
@@ -450,7 +450,7 @@ module ibex_cs_registers #(
       CSR_PMPADDR15: csr_rdata_int = pmp_addr_rdata[15];
 
       // vxsat: P-extension saturation flag
-      CSR_VXSAT: csr_rdata_int = vxsat_q;
+      CSR_VXSAT: csr_rdata_int = {31'h0000_0000, vxsat_q};
 
       CSR_DCSR: begin
         csr_rdata_int = dcsr_q;
@@ -976,6 +976,7 @@ module ibex_cs_registers #(
   );
 
   // VXSAT
+  assign vxsat_d = vxsat_set_i;
   ibex_csr #(
     .Width     (1),   // TODO: This might have to be 32??
     .ShadowCopy(1'b0),

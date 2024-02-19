@@ -7,8 +7,7 @@
  * Arithmetic logic unit
  */
 module ibex_alu #(
-  parameter ibex_pkg::rv32b_e RV32B = ibex_pkg::RV32BNone,
-  parameter ibex_pkg::rv32p_e RV32P = ibex_pkg::RV32PNone
+  parameter ibex_pkg::rv32b_e RV32B = ibex_pkg::RV32BNone
 ) (
   input  ibex_pkg::alu_op_e operator_i,
   input  logic [31:0]       operand_a_i,
@@ -1314,7 +1313,8 @@ module ibex_alu #(
     assign imd_val_we_o        = '{default: '0};
   end
 
-  ///////////////
+//TODO
+/*  ///////////////
   // P-ext ALU //
   ///////////////
 
@@ -1342,7 +1342,7 @@ module ibex_alu #(
 
     assign zpn_result = '0;
 
-  end
+  end*/
 
   ////////////////
   // Result mux //
@@ -1422,8 +1422,8 @@ module ibex_alu #(
       ALU_CLMUL, ALU_CLMULR,
       ALU_CLMULH: result_o = clmul_result;
 
-      // P-ext ALU output
-      ZPN_INSTR:  result_o = zpn_result;
+      // P-ext ALU output// TODO
+      //ZPN_INSTR:  result_o = zpn_result;
 
       default: ;
     endcase

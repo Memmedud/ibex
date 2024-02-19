@@ -1043,7 +1043,7 @@ module ibex_top import ibex_pkg::*; #(
       .rf_wdata_wb_ecc_i      (rf_wdata_wb_ecc_local),
       .rf_rdata_a_ecc_i       (rf_rdata_a_ecc_local),
       .rf_rdata_b_ecc_i       (rf_rdata_b_ecc_local),
-      //.rf_rdata_rd_ecc_i       (rf_rdata_rd_ecc_local),   // TODO
+      .rf_rdata_rd_ecc_i      (rf_rdata_rd_ecc_local),
 
       .ic_tag_req_i           (ic_tag_req_local),
       .ic_tag_write_i         (ic_tag_write_local),

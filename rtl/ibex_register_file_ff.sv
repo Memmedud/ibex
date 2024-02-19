@@ -12,7 +12,7 @@
  */
 module ibex_register_file_ff #(
   parameter bit                   RV32E             = 0,
-  parameter ibex_pkg::rv32p_e     RV32P             = ibex_pkg::RV32PNone,
+  //parameter ibex_pkg::rv32p_e     RV32P             = ibex_pkg::RV32PNone,
   parameter int unsigned          DataWidth         = 32,
   parameter bit                   DummyInstructions = 0,
   parameter bit                   WrenCheck         = 0,

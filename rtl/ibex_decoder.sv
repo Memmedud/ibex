@@ -81,6 +81,9 @@ module ibex_decoder #(
   output ibex_pkg::md_op_e     multdiv_operator_o,
   output logic [1:0]           multdiv_signed_mode_o,
 
+  // PEXT
+  output logic                 zpn_enable_o,
+
   // CSRs
   output logic                 csr_access_o,          // access to CSR
   output ibex_pkg::csr_op_e    csr_op_o,              // operation to perform on CSR
@@ -234,6 +237,8 @@ module ibex_decoder #(
     wfi_insn_o            = 1'b0;
 
     opcode                = opcode_e'(instr[6:0]);
+
+    zpn_enable_o = (opcode == OPCODE_P);
 
     unique case (opcode)
 
@@ -561,6 +566,10 @@ module ibex_decoder #(
 
       OPCODE_P: begin
         // TODO: Add proper detection of illegal instructions
+        rf_ren_a_o      = 1'b1;
+        rf_ren_b_o      = 1'b1;
+        rf_we           = 1'b1;
+        
         illegal_insn = (RV32P == RV32PNone) ? 1'b1 : 1'b0;
       end
 
@@ -1144,6 +1153,9 @@ module ibex_decoder #(
       /////////////
       // TODO: Add shortcut for Pext alu for hopefully shorter critical path...
       OPCODE_P: begin
+        alu_op_a_mux_sel_o = OP_A_REG_A;
+        alu_op_b_mux_sel_o = OP_B_REG_B;
+
         if (RV32P == RV32PZpn) alu_operator_o = ZPN_INSTR;
       end
 
