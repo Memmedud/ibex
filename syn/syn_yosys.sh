@@ -57,13 +57,14 @@ for file in ../rtl/*.sv; do
   module=$(basename -s .sv "$file")
 
   # Skip packages
-  if echo "$module" | grep -q '_pkg$'; then
+  if echo "$module" | grep -q '_pkg$' | grep -q '_pkg_pext$'; then
       continue
   fi
 
   sv2v \
     --define=SYNTHESIS --define=YOSYS \
     ../rtl/*_pkg.sv \
+    ../rtl/*_pkg_pext.sv \
     ../vendor/lowrisc_ip/ip/prim/rtl/prim_ram_1p_pkg.sv \
     ../vendor/lowrisc_ip/ip/prim/rtl/prim_secded_pkg.sv \
     -I../vendor/lowrisc_ip/ip/prim/rtl \
