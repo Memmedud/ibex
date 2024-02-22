@@ -511,19 +511,26 @@ module ibex_alu_pext #(
   assign clip_val       =  operand_a_i & clip_mask;
 
   // Detect if the operands are signed
-  logic[3:0] operand_signed;
-  assign operand_signed = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]} & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
+  logic[3:0] operand_negative;
+  always_comb begin
+    unique case ({width32_i, width8_i})
+      2'b01  : operand_negative = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]} & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
+      2'b10  : operand_negative = {4{operand_a_i[31]}} & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
+      default: operand_negative = { {2{operand_a_i[31]}}, {2{operand_a_i[15]}} } & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
+    endcase
+  end
 
   // Detect if saturation is occuring
   logic[4:0] clip_len;
-  assign clip_len = {(width32_i ? imm_val_i[4] : 1'b0), imm_val_i[3:0]};
+  assign clip_len = {(width32_i ? ~imm_val_i[4] : 1'b1), ~imm_val_i[3:0]};
 
-  logic[3:0] clrs_res, clip_saturation;
-  assign clrs_res = { (bit_cnt_result[27:24] < clip_len[3:0]), 
-                      (bit_cnt_result[20:16] < clip_len[4:0]),
-                      (bit_cnt_result[11:8]  < clip_len[3:0]), 
-                      (bit_cnt_result[5:0]   < {1'b0, clip_len[4:0]}) };
+  logic[3:0] clrs_res;
+  assign clrs_res = { (bit_cnt_result[27:24] <= {1'b0, clip_len[2:0]}), 
+                      (bit_cnt_result[20:16] <= {1'b0, width8_i ? 1'b0 : clip_len[3], clip_len[2:0]}),
+                      (bit_cnt_result[11:8]  <= {1'b0, clip_len[2:0]}), 
+                      (bit_cnt_result[5:0]   <= {1'b0, ~width32_i ? 1'b0 : clip_len[4], width8_i ? 1'b0 : clip_len[3], clip_len[2:0]}) };
 
+  logic[3:0] clip_saturation;
   always_comb begin
     unique case({width32_i, width8_i})
       2'b01  : clip_saturation = clrs_res;
@@ -534,16 +541,17 @@ module ibex_alu_pext #(
 
   // Generate the residual value
   logic[31:0] residual_val, residual_result;
-  assign residual_val = { {8{operand_signed[3]}}, {8{operand_signed[2]}}, {8{operand_signed[1]}}, {8{operand_signed[0]}}};
+  assign residual_val = { {8{operand_negative[3]}}, {8{operand_negative[2]}}, {8{operand_negative[1]}}, {8{operand_negative[0]}}};
   assign residual_result = residual_val & residual_mask;
 
   // Gerenate the clipped value
   logic[31:0] clip_val_result;
-  assign clip_val_result = {clip_saturation[3] ? (clip_mask[31:24] & {8{~clip_saturation[3]}}) : clip_val[31:24],
-                            clip_saturation[2] ? (clip_mask[23:16] & {8{~clip_saturation[2]}}) : clip_val[23:16],
-                            clip_saturation[1] ? (clip_mask[15:8]  & {8{~clip_saturation[1]}}) : clip_val[15:8] ,
-                            clip_saturation[0] ? (clip_mask[7:0]   & {8{~clip_saturation[0]}}) : clip_val[7:0]   };
+  assign clip_val_result = {clip_saturation[3] ? (clip_mask[31:24] & {8{~operand_negative[3]}}) : clip_val[31:24],
+                            clip_saturation[2] ? (clip_mask[23:16] & {8{~operand_negative[2]}}) : clip_val[23:16],
+                            clip_saturation[1] ? (clip_mask[15:8]  & {8{~operand_negative[1]}}) : clip_val[15:8] ,
+                            clip_saturation[0] ? (clip_mask[7:0]   & {8{~operand_negative[0]}}) : clip_val[7:0]   };
 
+  // Generate final clipped result
   logic[31:0] clip_result;
   assign clip_result = residual_result | clip_val_result;
 
@@ -821,7 +829,7 @@ module ibex_alu_pext #(
         ZPN_SCLIP32, ZPN_SCLIP16,
         ZPN_UCLIP32, ZPN_SCLIP8: result_o = clip_result;
 
-        // Shift ops      // Omitting rounding shifts for now
+        // Shift ops      // Omitting rounding shifts for now   // KSLRA8.u KSLRA16.u
         ZPN_SRA16,    ZPN_SRA8,
         ZPN_SRAI16,   ZPN_SRAI8,
         ZPN_SRL16,    ZPN_SRL8,
