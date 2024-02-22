@@ -21,7 +21,7 @@ module ibex_alu_pext #(
   input  ibex_pkg_pext::zpn_op_e        operator_i,
   input  logic [31:0]                   operand_a_i,
   input  logic [31:0]                   operand_b_i,
-  input  logic [31:0]                   operand_rd_i, // Only used for mult
+  input  logic [31:0]                   operand_rd_i, // Only used for MULT and INSB
   input  logic                          enable_i,
 
   input  logic                          width8_i,
@@ -37,6 +37,7 @@ module ibex_alu_pext #(
 );
   import ibex_pkg_pext::*;
 
+  // Im lazy for now :)
   logic width8, width32;
   assign width8  = width8_i;
   assign width32 = width32_i;
@@ -126,9 +127,17 @@ module ibex_alu_pext #(
     endcase
   end
 
-  // Decode if op is ZPN_AVE
-  logic ave;
-  assign ave = (operator_i == ZPN_AVE);
+  // Decode if op is using rounding
+  logic rounding;
+  always_comb begin
+    unique case (operator_i)
+      ZPN_AVE/*,
+      ZPN_SCLIP16,  ZPN_SCLIP8,
+      ZPN_SCLIP32,  ZPN_UCLIP32*/: rounding = 1'b1;
+
+      default: rounding = 1'b0;
+    endcase
+  end
 
   // Prepare operands
   logic       sub8, sub32;
@@ -158,7 +167,7 @@ module ibex_alu_pext #(
   logic[8:0]  adder_result0, adder_result1, adder_result2, adder_result3;
   logic       carry_out0, carry_out1, carry_out2;
 
-  assign adder_result0 = adder_in_a0 + adder_in_b0 + {7'b000_0000, (sub[0] | ave)};
+  assign adder_result0 = adder_in_a0 + adder_in_b0 + {7'b000_0000, (sub[0] | rounding)};
   assign adder_result1 = adder_in_a1 + adder_in_b1 + {7'b000_0000, sub8}  + {7'b000_0000, carry_out0};
   assign adder_result2 = adder_in_a2 + adder_in_b2 + {7'b000_0000, sub32} + {7'b000_0000, carry_out1};
   assign adder_result3 = adder_in_a3 + adder_in_b3 + {7'b000_0000, sub8}  + {7'b000_0000, carry_out2};
@@ -242,8 +251,8 @@ module ibex_alu_pext #(
   logic[31:0] adder_result;
 
   always_comb begin
-    unique case(operator_i)
-      ZPN_AVE,
+    unique case(operator_i)   
+      ZPN_AVE,    // TODO add rounding ops to halving...
       ZPN_RADDW,    ZPN_URADDW,
       ZPN_RSUBW,    ZPN_URSUBW,
       ZPN_URCRAS16, ZPN_URCRSA16,
@@ -255,7 +264,7 @@ module ibex_alu_pext #(
       ZPN_URSUB16,  ZPN_URSUB8,
       ZPN_RSUB16,   ZPN_RSUB8: adder_result = halving_result;
 
-      ZPN_KADDW,    ZPN_UKADDW,
+      ZPN_KADDW,    ZPN_UKADDW,   // TODO: Add Saturating shifts here
       ZPN_KADDH,    ZPN_UKADDH,
       ZPN_KSUBW,    ZPN_UKSUBW,
       ZPN_KSUBH,    ZPN_UKSUBH,
@@ -393,34 +402,17 @@ module ibex_alu_pext #(
     endcase
   end
 
-  // TODO: Add check for 8000, 80, 8000_0000
+  // TODO: Add check for 80, 8000, 8000_0000
 
   for (genvar b = 0; b < 4; b++) begin : gen_abs_result
     assign abs_result[8*b +: 8] = abs_negative[b] ? normal_result[8*b +: 8] : operand_a_i[8*b +: 8];
   end
 
 
-  //////////
-  // CLIP //
-  //////////
-  // TODDO
-  logic[31:0]   clip_result;
-
-  //logic[4:0]    msb;
-  //assign msb = imm_val;
-
-  assign clip_result = '0;
-
-  //logic[31:0]   clip_sat_upper, clip_sat_lower;
-  //assign clip_sat_lower = signed_ops_i ?  : 32'h0;
-
-
-
-
   ////////////////
   // Bit-shifts //
   ////////////////
-  // TODO: Fix this description   TODO: Make sure we can shift 32-bits as well
+  // TODO: Fix this description   //TODO: Make sure we can shift 32-bits as well  // TODO: Change to use one 32-bit shifter
   // Using 2 16-bit shifters. to shift both halfwords right
   // then 2 8-bit shifters to conditionally shift byte 2 and 0 left then choose between 16 or 8 bit 
 
@@ -428,32 +420,53 @@ module ibex_alu_pext #(
   logic shift_left;
   always_comb begin
     unique case (operator_i)
-      ZPN_SLL16,  ZPN_SLL8,
-      ZPN_SLLI16, ZPN_SLLI8: shift_left = 1'b1;
-      default:               shift_left = 1'b0;
+      ZPN_SLL16,    ZPN_SLL8,
+      ZPN_SLLI16,   ZPN_SLLI8,
+      ZPN_SCLIP16,  ZPN_SCLIP8,
+      ZPN_SCLIP32,  ZPN_UCLIP32: shift_left = 1'b1;
+
+      default: shift_left = 1'b0;
+    endcase
+  end
+
+  // Clipping instructions require all ones on shifter
+  logic[31:0] shift_operand;
+  logic       shift_signed;
+  always_comb begin
+    unique case (operator_i)
+      ZPN_SCLIP16,  ZPN_SCLIP8,
+      ZPN_SCLIP32,  ZPN_UCLIP32: begin
+        shift_operand = 32'hffff_ffff;
+        shift_signed  = 1'b0;
+      end
+
+      default: begin
+        shift_operand = operand_a_i;
+        shift_signed  = signed_ops_i;
+      end
     endcase
   end
 
   // bit-reverse operand_a for left shifts
-  logic[31:0] operand_a_rev;
+  logic[31:0] shift_operand_rev;
   for (genvar i = 0; i < 32; i++) begin : gen_rev_operand
-    assign operand_a_rev[i] = operand_a_i[31-i];
+    assign shift_operand_rev[i] = shift_operand[31-i];
   end
 
-  // Prepare operands   // TODO: Support rounding as well
-  logic[15:0]   shift_operand0, shift_operand1;
-  logic[4:0]    shift_amt;
+  // Prepare operands   // TODO: Support rounding as well pipe back into adder to add one 
+  logic[15:0] shift_operand0, shift_operand1;
+  logic[4:0]  shift_amt;
 
-  assign shift_operand0 = shift_left ? operand_a_rev[15:0]  : operand_a_i[15:0];
-  assign shift_operand1 = shift_left ? operand_a_rev[31:16] : operand_a_i[31:16];
+  assign shift_operand0 = shift_left ? shift_operand_rev[15:0]  : shift_operand[15:0];
+  assign shift_operand1 = shift_left ? shift_operand_rev[31:16] : shift_operand[31:16];
   assign shift_amt      = imm_instr_i ? imm_val_i : operand_b_i[4:0];
   
   // First shifter
   logic[16:0]   shift_result_first0, shift_result_first1;
   logic[1:0]    unused_shift_result_first; 
   
-  assign shift_result_first0 = $signed({(signed_ops_i & shift_operand0[15]), shift_operand0}) >>> shift_amt;
-  assign shift_result_first1 = $signed({(signed_ops_i & shift_operand1[15]), shift_operand1}) >>> shift_amt;
+  assign shift_result_first0 = $signed({(shift_signed & shift_operand0[15]), shift_operand0}) >>> shift_amt;
+  assign shift_result_first1 = $signed({(shift_signed & shift_operand1[15]), shift_operand1}) >>> shift_amt;
   
   assign unused_shift_result_first = {shift_result_first0[16], shift_result_first1[16]};
 
@@ -461,13 +474,13 @@ module ibex_alu_pext #(
   logic[8:0]    shift_result_second0, shift_result_second2;   // Only need to do this for byte 2 and 0
   logic[1:0]    unused_shift_result_second;
 
-  assign shift_result_second0  = $signed({(signed_ops_i & shift_operand0[7]), shift_operand0[7:0]}) >>> shift_amt[2:0];
-  assign shift_result_second2  = $signed({(signed_ops_i & shift_operand1[7]), shift_operand1[7:0]}) >>> shift_amt[2:0];
+  assign shift_result_second0  = $signed({(shift_signed & shift_operand0[7]), shift_operand0[7:0]}) >>> shift_amt[2:0];
+  assign shift_result_second2  = $signed({(shift_signed & shift_operand1[7]), shift_operand1[7:0]}) >>> shift_amt[2:0];
   
   assign unused_shift_result_second = {shift_result_second2[8], shift_result_second0[8]};
 
   // Concatinate result
-  logic[31:0] shift_result_full;
+  logic[31:0] shift_result_full;    // TODO: Fix for 32 bit shifts
   always_comb begin
     unique case (width8)
       1'b1: shift_result_full = {shift_result_first1[15:8], shift_result_second2[7:0], shift_result_first0[15:8], shift_result_second0[7:0]};
@@ -486,6 +499,53 @@ module ibex_alu_pext #(
   // Produce final shifter output
   logic[31:0] shift_result;
   assign shift_result = shift_left ? shift_result_rev : shift_result_full;
+
+
+  //////////
+  // CLIP //
+  //////////
+  // Generate masks and clipped value
+  logic[31:0] clip_mask, residual_mask, clip_val;
+  assign residual_mask  =  shift_result;
+  assign clip_mask      = ~shift_result;
+  assign clip_val       =  operand_a_i & clip_mask;
+
+  // Detect if the operands are signed
+  logic[3:0] operand_signed;
+  assign operand_signed = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]} & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
+
+  // Detect if saturation is occuring
+  logic[4:0] clip_len;
+  assign clip_len = {(width32_i ? imm_val_i[4] : 1'b0), imm_val_i[3:0]};
+
+  logic[3:0] clrs_res, clip_saturation;
+  assign clrs_res = { (bit_cnt_result[27:24] < clip_len[3:0]), 
+                      (bit_cnt_result[20:16] < clip_len[4:0]),
+                      (bit_cnt_result[11:8]  < clip_len[3:0]), 
+                      (bit_cnt_result[5:0]   < {1'b0, clip_len[4:0]}) };
+
+  always_comb begin
+    unique case({width32_i, width8_i})
+      2'b01  : clip_saturation = clrs_res;
+      2'b10  : clip_saturation = {4{clrs_res[0]}};
+      default: clip_saturation = {{2{clrs_res[2]}}, {2{clrs_res[0]}}};
+    endcase
+  end
+
+  // Generate the residual value
+  logic[31:0] residual_val, residual_result;
+  assign residual_val = { {8{operand_signed[3]}}, {8{operand_signed[2]}}, {8{operand_signed[1]}}, {8{operand_signed[0]}}};
+  assign residual_result = residual_val & residual_mask;
+
+  // Gerenate the clipped value
+  logic[31:0] clip_val_result;
+  assign clip_val_result = {clip_saturation[3] ? (clip_mask[31:24] & {8{~clip_saturation[3]}}) : clip_val[31:24],
+                            clip_saturation[2] ? (clip_mask[23:16] & {8{~clip_saturation[2]}}) : clip_val[23:16],
+                            clip_saturation[1] ? (clip_mask[15:8]  & {8{~clip_saturation[1]}}) : clip_val[15:8] ,
+                            clip_saturation[0] ? (clip_mask[7:0]   & {8{~clip_saturation[0]}}) : clip_val[7:0]   };
+
+  logic[31:0] clip_result;
+  assign clip_result = residual_result | clip_val_result;
 
 
   //////////////////
@@ -548,44 +608,41 @@ module ibex_alu_pext #(
 
   // Bit counter is a 5-layer deep Brent-Kung Adder
   // First Adder layer
-  logic[31:0]   bit_cnt_first_layer;  // We get 16 2-bit results
+  logic[31:0] bit_cnt_first_layer;  // We get 16 2-bit results
   for (genvar i = 0; i < 16; i++) begin : gen_bit_cnt_adder1
     assign bit_cnt_first_layer[2*i+1 : 2*i] = bit_cnt_operand[2*i] + bit_cnt_operand[2*i + 1];
   end
 
   // Second adder layer
-  logic[23:0]   bit_cnt_second_layer; // And 8 3-bit results
+  logic[23:0] bit_cnt_second_layer; // And 8 3-bit results
   for (genvar i = 0; i < 8; i++) begin : gen_bit_cnt_adder2
     assign bit_cnt_second_layer[3*i +: 3] = bit_cnt_first_layer[4*i+1 : 4*i] + bit_cnt_first_layer[4*i+3 : 4*i+2];
   end
 
   // Third adder layer
-  logic[15:0]   bit_cnt_third_layer;  // And 4 4-bit results
+  logic[15:0] bit_cnt_third_layer;  // And 4 4-bit results
   for (genvar i = 0; i < 4; i++) begin : gen_bit_cnt_adder3
     assign bit_cnt_third_layer[4*i +: 4] = bit_cnt_second_layer[6*i+2 : 6*i] + bit_cnt_second_layer[6*i+5 : 6*i+3];
   end
 
   // Fourth adder layer
-  logic[9:0]   bit_cnt_fourth_layer;  // And 2 5-bit results
+  logic[9:0] bit_cnt_fourth_layer;  // And 2 5-bit results
   assign bit_cnt_fourth_layer[4:0] = {1'b0, bit_cnt_third_layer[3:0]}  + {1'b0, bit_cnt_third_layer[7:4]};
   assign bit_cnt_fourth_layer[9:5] = {1'b0, bit_cnt_third_layer[11:8]} + {1'b0, bit_cnt_third_layer[15:12]};
 
   // Fifth adder layer for 32-bit results
-  logic[31:0]    bit_cnt_result_width32;
+  logic[31:0] bit_cnt_result_width32;
   assign bit_cnt_result_width32 = {26'h0, {1'b0, bit_cnt_fourth_layer[4:0]} + {1'b0, bit_cnt_fourth_layer[9:5]}};
 
   // Concatinate partial results
-  logic[31:0]   bit_cnt_result_width8, bit_cnt_result_width16;
-  assign bit_cnt_result_width8 = {4'h0, bit_cnt_third_layer[15:12], 
-                                  4'h0, bit_cnt_third_layer[11:8] , 
-                                  4'h0, bit_cnt_third_layer[7:4]  , 
-                                  4'h0, bit_cnt_third_layer[3:0]   };
+  logic[31:0] bit_cnt_result_width8, bit_cnt_result_width16;
+  assign bit_cnt_result_width8 = {4'h0, bit_cnt_third_layer[15:12], 4'h0, bit_cnt_third_layer[11:8], 
+                                  4'h0, bit_cnt_third_layer[7:4]  , 4'h0, bit_cnt_third_layer[3:0]  };
 
-  assign bit_cnt_result_width16 = {11'h0, bit_cnt_fourth_layer[9:5], 
-                                   11'h0, bit_cnt_fourth_layer[4:0] };
+  assign bit_cnt_result_width16 = {11'h0, bit_cnt_fourth_layer[9:5], 11'h0, bit_cnt_fourth_layer[4:0] };
 
   // Bit-count result mux
-  logic[31:0]   bit_cnt_result;
+  logic[31:0] bit_cnt_result;
   always_comb begin
     unique case ({width32, width8})
       2'b10  : bit_cnt_result = bit_cnt_result_width32;
@@ -650,7 +707,7 @@ module ibex_alu_pext #(
 
 
   /////////////////
-  // Insert Byte //     // Assuming we put rd on rs2
+  // Insert Byte //
   /////////////////
   logic[31:0]   insb_result;
   logic[7:0]    insb_byte;
@@ -660,10 +717,10 @@ module ibex_alu_pext #(
   always_comb begin
     insb_result = '0;
     unique case (operator_i)
-      ZPN_INSB0: insb_result = {operand_b_i[31:8], insb_byte};
-      ZPN_INSB1: insb_result = {operand_b_i[31:16], insb_byte, operand_b_i[7:0]};
-      ZPN_INSB2: insb_result = {operand_b_i[31:24], insb_byte, operand_b_i[15:0]};
-      ZPN_INSB3: insb_result = {insb_byte, operand_b_i[23:0]};
+      ZPN_INSB0: insb_result = {operand_rd_i[31:8], insb_byte};
+      ZPN_INSB1: insb_result = {operand_rd_i[31:16], insb_byte, operand_rd_i[7:0]};
+      ZPN_INSB2: insb_result = {operand_rd_i[31:24], insb_byte, operand_rd_i[15:0]};
+      ZPN_INSB3: insb_result = {insb_byte, operand_rd_i[23:0]};
       default: ;
     endcase
   end
@@ -678,7 +735,7 @@ module ibex_alu_pext #(
     if (enable_i) begin
       unique case (operator_i)
         // Adder operation
-        // Misc
+        // Misc   // TODO: Add rounding ops here
         ZPN_AVE,
         // Add ops
         ZPN_KADDW,    ZPN_KADDH,
@@ -761,22 +818,22 @@ module ibex_alu_pext #(
         ZPN_KABSW: result_o = abs_result;
 
         // Clip ops
-        ZPN_SCLIP32, ZPN_SCLIP16, ZPN_SCLIP8,
-        ZPN_UCLIP32, ZPN_UCLIP16, ZPN_UCLIP8: result_o = clip_result;
+        ZPN_SCLIP32, ZPN_SCLIP16,
+        ZPN_UCLIP32, ZPN_SCLIP8: result_o = clip_result;
 
-        // Shift ops      // Omitting rounding shifts for now And Immediate is not implemented properly
+        // Shift ops      // Omitting rounding shifts for now
         ZPN_SRA16,    ZPN_SRA8,
         ZPN_SRAI16,   ZPN_SRAI8,
         ZPN_SRL16,    ZPN_SRL8,
         ZPN_SRLI16,   ZPN_SRLI8,
         ZPN_SLL16,    ZPN_SLL8,
-        ZPN_SLLI16,   ZPN_SLLI8: result_o = shift_result;
-      //ZPN_KSLL16,   ZPN_KSLL8,
-      //ZPN_KSLLI16,  ZPN_KSLLI8,
-      //ZPN_KSLRA16,  ZPN_KSLRA8:    // These seems tricky to implement
+        ZPN_SLLI16,   ZPN_SLLI8,
+        ZPN_KSLL16,   ZPN_KSLL8,      // TODO ========================================
+        ZPN_KSLLI16,  ZPN_KSLLI8,
+        ZPN_KSLRA16,  ZPN_KSLRA8: result_o = shift_result;
         
         // Bit-count ops
-        ZPN_CLRS16, ZPN_CLRS8,  ZPN_CLRS32,
+        ZPN_CLRS16, ZPN_CLRS8, ZPN_CLRS32,
         ZPN_CLZ16,  ZPN_CLZ8: result_o = bit_cnt_result;
 
         // Unpack ops
