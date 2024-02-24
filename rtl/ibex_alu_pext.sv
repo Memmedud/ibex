@@ -5,37 +5,51 @@
 
 /*
  * Special Arithmetic logic unit for P-ext instructions
+ *  -> Enabling P-extension will disable B-extension and use Zbpbo instead    // TODO: Add Zbpbo extension
  */
 module ibex_alu_pext #(
   parameter SAT_VAL_U8    = 8'hff,          // 255
   parameter SAT_VAL_S8L   = 8'h80,          // -128
   parameter SAT_VAL_S8H   = 8'h7f,          // 127
   parameter SAT_VAL_S16L  = 16'h8000,       // -32768
-  parameter SAT_VAL_S16H  = 16'h7fff,        // 32767
+  parameter SAT_VAL_S16H  = 16'h7fff,       // 32767
   parameter SAT_VAL_S32L  = 32'h8000_0000,  // -2147483648
-  parameter SAT_VAL_S32H  = 32'h7fff_ffff  // 2147483647
+  parameter SAT_VAL_S32H  = 32'h7fff_ffff   // 2147483647
 ) (
   input  logic                          clk_i,
   input  logic                          rst_ni,
 
-  input  ibex_pkg_pext::zpn_op_e        operator_i,
+  input  ibex_pkg_pext::zpn_op_e        zpn_operator_i,
+  input  logic                          zpn_instr_i,
+  input  ibex_pkg::alu_op_e             alu_operator_i,
+
   input  logic [31:0]                   operand_a_i,
   input  logic [31:0]                   operand_b_i,
-  input  logic [31:0]                   operand_rd_i, // Only used for MULT and INSB
-  input  logic                          enable_i,
+  input  logic [31:0]                   operand_rd_i,       // Only used for MULT and INSB
 
   input  logic                          width8_i,
   input  logic                          width32_i,
   input  logic                          signed_ops_i,
 
+  input  logic                          multdiv_sel_i,
+
   input  logic [4:0]                    imm_val_i,
   input  logic                          imm_instr_i,
 
+  output logic [31:0]                   adder_result_o,
+  output logic [33:0]                   adder_result_ext_o,
+
   output logic [31:0]                   result_o,
-  output logic                          valid_o,
-  output logic                          set_ov_o
+  output logic                          valid_o,        // All ALU ops are single cycle, only used for Mults
+  output logic                          set_ov_o,
+  output logic                          comparison_result_o,
+  output logic                          is_equal_result_o
 );
   import ibex_pkg_pext::*;
+  import ibex_pkg::*;
+
+  ibex_pkg::alu_op_e unused_alu_op;
+  assign unused_alu_op = alu_operator_i;
 
   // Im lazy for now :)
   logic width8, width32;
@@ -51,7 +65,7 @@ module ibex_alu_pext #(
   // Decode instructions that use subtraction
   logic[1:0] sub;
   always_comb begin
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       // Subtraction ops
       ZPN_RSUB16,   ZPN_RSUB8,   ZPN_RSUBW,   
       ZPN_KSUB16,   ZPN_KSUB8,   ZPN_KSUBW,   ZPN_KSUBH,
@@ -89,12 +103,28 @@ module ibex_alu_pext #(
       // All other ops require Add
       default: sub = 2'b00;
     endcase
+
+    // TODO: Fix this
+    unique case(alu_operator_i)
+      // Adder OPs
+      ALU_SUB,
+      // Comparator OPs
+      ALU_EQ,   ALU_NE,
+      ALU_GE,   ALU_GEU,
+      ALU_LT,   ALU_LTU,
+      ALU_SLT,  ALU_SLTU,
+      // MinMax OPs (RV32B Ops)
+      ALU_MIN,  ALU_MINU,
+      ALU_MAX,  ALU_MAXU: sub = 2'b11;
+
+      default: ;
+    endcase
   end
 
   // Decode cross Add/Sub
   logic crossed;
   always_comb begin
-    unique case(operator_i)
+    unique case(zpn_operator_i)
       ZPN_RCRAS16,  ZPN_RCRSA16, 
       ZPN_KCRAS16,  ZPN_KCRSA16,
       ZPN_URCRAS16, ZPN_URCRSA16, 
@@ -108,7 +138,7 @@ module ibex_alu_pext #(
   // Decode Halfs
   logic halved;
   always_comb begin
-    unique case(operator_i)
+    unique case(zpn_operator_i)
       ZPN_KADDH, ZPN_UKADDH,
       ZPN_KSUBH, ZPN_UKSUBH: halved = 1'b1;
 
@@ -119,7 +149,7 @@ module ibex_alu_pext #(
   // Decode if we only use A_in
   logic oneop;
   always_comb begin
-    unique case(operator_i)
+    unique case(zpn_operator_i)
       ZPN_KABS16, ZPN_KABS8,
       ZPN_KABSW: oneop = 1'b1;
 
@@ -130,7 +160,7 @@ module ibex_alu_pext #(
   // Decode if op is using rounding
   logic rounding;
   always_comb begin
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       ZPN_AVE/*,
       ZPN_SCLIP16,  ZPN_SCLIP8,
       ZPN_SCLIP32,  ZPN_UCLIP32*/: rounding = 1'b1;
@@ -167,7 +197,7 @@ module ibex_alu_pext #(
   logic[8:0]  adder_result0, adder_result1, adder_result2, adder_result3;
   logic       carry_out0, carry_out1, carry_out2;
 
-  assign adder_result0 = adder_in_a0 + adder_in_b0 + {7'b000_0000, (sub[0] | rounding)};
+  assign adder_result0 = adder_in_a0 + adder_in_b0 + {7'b000_0000, (sub[0] | rounding)};    // TODO: Check this
   assign adder_result1 = adder_in_a1 + adder_in_b1 + {7'b000_0000, sub8}  + {7'b000_0000, carry_out0};
   assign adder_result2 = adder_in_a2 + adder_in_b2 + {7'b000_0000, sub32} + {7'b000_0000, carry_out1};
   assign adder_result3 = adder_in_a3 + adder_in_b3 + {7'b000_0000, sub8}  + {7'b000_0000, carry_out2};
@@ -249,9 +279,8 @@ module ibex_alu_pext #(
 
   // Adder results mux
   logic[31:0] adder_result;
-
   always_comb begin
-    unique case(operator_i)   
+    unique case(zpn_operator_i)   
       ZPN_AVE,    // TODO add rounding ops to halving...
       ZPN_RADDW,    ZPN_URADDW,
       ZPN_RSUBW,    ZPN_URSUBW,
@@ -279,6 +308,10 @@ module ibex_alu_pext #(
 
       default: adder_result = normal_result;
     endcase 
+
+    adder_result_ext_o = {adder_result3[8], normal_result, 1'b1};
+    adder_result_o     = normal_result;
+
   end
 
 
@@ -291,7 +324,8 @@ module ibex_alu_pext #(
     .clk_i          (clk_i),
     .rst_ni         (rst_ni),
     .mult_en_i      (1'b1),
-    .operator_i     (operator_i),
+    .operator_i     (zpn_operator_i),
+    .multdiv_sel_i  (multdiv_sel_i),
     .op_a_i         (operand_a_i),
     .op_b_i         (operand_b_i),
     .rd_val_i       (operand_rd_i),
@@ -318,10 +352,13 @@ module ibex_alu_pext #(
       is_byte_equal[b] = 1'b1;
     end
 
-    unique case (width8)
-      1'b0: is_equal = {&is_byte_equal[3:2], &is_byte_equal[3:2], &is_byte_equal[1:0], &is_byte_equal[1:0]};
-      1'b1: is_equal = is_byte_equal;
+    unique case ({width32_i, width8_i})
+      2'b10  : is_equal = {{4{&is_byte_equal}}};
+      2'b01  : is_equal = is_byte_equal;
+      default: is_equal = {{2{&is_byte_equal[3:2]}}, {2{&is_byte_equal[1:0]}}};
     endcase
+
+    is_equal_result_o = ~zpn_instr_i & is_equal;
   end
 
   // Calculate is_less
@@ -333,13 +370,13 @@ module ibex_alu_pext #(
         is_byte_less[b] = (adder_result[8*b+7] == 1'b1);
       end
       else begin
-        is_byte_less[b] = ~(operand_a_i[8*b+7] ^ (signed_ops_i));
+        is_byte_less[b] = ~(operand_a_i[8*b+7] ^ (signed_ops_i)); // TODO: remember alu thingies for signed ops...
       end
     end
 
     unique case (width8)
       1'b0: is_less = {is_byte_less[3], is_byte_less[3], is_byte_less[1], is_byte_less[1]};
-      1'b1: is_less = is_byte_less;
+      1'b1: is_less = is_byte_less;   // TODO: Fix this
     endcase
   end
 
@@ -347,7 +384,7 @@ module ibex_alu_pext #(
   logic[3:0]    comp_result_packed;
 
   always_comb begin
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       // Less than
       ZPN_SMIN16,   ZPN_SMIN8,
       ZPN_UMIN16,   ZPN_UMIN8,
@@ -365,14 +402,28 @@ module ibex_alu_pext #(
       // Including is equal
       default:                    comp_result_packed = is_equal;
     endcase
+
+    unique case (alu_operator_i)
+      ALU_EQ: comp_result_packed =  is_equal;
+      ALU_NE: comp_result_packed = ~is_equal;
+      ALU_GE,   ALU_GEU,
+      ALU_MAX,  ALU_MAXU: cmp_result = ~is_less;
+      ALU_LT,   ALU_LTU,
+      ALU_MIN,  ALU_MINU,
+      ALU_SLT,  ALU_SLTU: cmp_result = is_less;  // TODO: Fix this   
+      
+      default: ;
+    endcase
   end
 
   // Widen output from bitwise to bytewise
-  logic[31:0]   comp_result;
+  logic[31:0]   comp_result;      // TODO fix for noext
   assign comp_result = { {8{comp_result_packed[3]}},
                          {8{comp_result_packed[2]}},
                          {8{comp_result_packed[1]}},
                          {8{comp_result_packed[0]}} };
+
+  assign comparison_result_o = ~zpn_instr_i & comp_result_packed[3];
 
 
   /////////////
@@ -419,7 +470,7 @@ module ibex_alu_pext #(
   // Decode if we should left-shift (right shifting by default)
   logic shift_left;
   always_comb begin
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       ZPN_SLL16,    ZPN_SLL8,
       ZPN_SLLI16,   ZPN_SLLI8,
       ZPN_SCLIP16,  ZPN_SCLIP8,
@@ -433,7 +484,7 @@ module ibex_alu_pext #(
   logic[31:0] shift_operand;
   logic       shift_signed;
   always_comb begin
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       ZPN_SCLIP16,  ZPN_SCLIP8,
       ZPN_SCLIP32,  ZPN_UCLIP32: begin
         shift_operand = 32'hffff_ffff;
@@ -454,16 +505,23 @@ module ibex_alu_pext #(
   end
 
   // Prepare operands   // TODO: Support rounding as well pipe back into adder to add one 
-  logic[15:0] shift_operand0, shift_operand1;
-  logic[4:0]  shift_amt;
+  logic[31:0] shift_operand;
+  logic[4:0]  shift_amt_raw, shift_amt;
 
-  assign shift_operand0 = shift_left ? shift_operand_rev[15:0]  : shift_operand[15:0];
-  assign shift_operand1 = shift_left ? shift_operand_rev[31:16] : shift_operand[31:16];
-  assign shift_amt      = imm_instr_i ? imm_val_i : operand_b_i[4:0];
-  
+  assign shift_operand = shift_left  ? shift_operand_rev : shift_operand;
+  assign shift_amt_raw = imm_instr_i ? imm_val_i : operand_b_i[4:0];
+  assign shift_amt     = {(width32_i ? shift_amt_raw[4] : 1'b0), (width8_i ? 1'b0 : shift_amt_raw[3]), shift_amt_raw[2:0]};
+
+  // Actual shifter
+  logic[32:0] shifter_result;
+  assign shifter_result = $signed({signed_ops_i & shift_operand[31], shift_operand}) >>> shift_amt;
+
+  // Apply mask 
+
+  /*
   // First shifter
-  logic[16:0]   shift_result_first0, shift_result_first1;
-  logic[1:0]    unused_shift_result_first; 
+  logic[16:0] shift_result_first0, shift_result_first1;
+  logic[1:0]  unused_shift_result_first; 
   
   assign shift_result_first0 = $signed({(shift_signed & shift_operand0[15]), shift_operand0}) >>> shift_amt;
   assign shift_result_first1 = $signed({(shift_signed & shift_operand1[15]), shift_operand1}) >>> shift_amt;
@@ -471,13 +529,13 @@ module ibex_alu_pext #(
   assign unused_shift_result_first = {shift_result_first0[16], shift_result_first1[16]};
 
   // Second conditional shifter 
-  logic[8:0]    shift_result_second0, shift_result_second2;   // Only need to do this for byte 2 and 0
-  logic[1:0]    unused_shift_result_second;
+  logic[8:0] shift_result_second0, shift_result_second2;   // Only need to do this for byte 2 and 0
+  logic[1:0] unused_shift_result_second;
 
   assign shift_result_second0  = $signed({(shift_signed & shift_operand0[7]), shift_operand0[7:0]}) >>> shift_amt[2:0];
   assign shift_result_second2  = $signed({(shift_signed & shift_operand1[7]), shift_operand1[7:0]}) >>> shift_amt[2:0];
   
-  assign unused_shift_result_second = {shift_result_second2[8], shift_result_second0[8]};
+  assign unused_shift_result_second = {shift_result_second2[8], shift_result_second0[8]}; // TODO
 
   // Concatinate result
   logic[31:0] shift_result_full;    // TODO: Fix for 32 bit shifts
@@ -486,7 +544,7 @@ module ibex_alu_pext #(
       1'b1: shift_result_full = {shift_result_first1[15:8], shift_result_second2[7:0], shift_result_first0[15:8], shift_result_second0[7:0]};
       1'b0: shift_result_full = {shift_result_first1[15:0], shift_result_first0[15:0]};
     endcase
-  end
+  end*/
   
   // Flip bytes for Left-shifting
   logic[31:0] shift_result_rev;
@@ -499,6 +557,24 @@ module ibex_alu_pext #(
   // Produce final shifter output
   logic[31:0] shift_result;
   assign shift_result = shift_left ? shift_result_rev : shift_result_full;
+
+
+  /////////////////// // TODO: Consider adding negate ops from RV32B
+  // Bitwise Logic //
+  ///////////////////
+  logic[31:0] bw_or_result, bw_and_result, bw_xor_result, bw_result;
+
+  assign bw_or_result  = operand_a_i | operand_b_i;
+  assign bw_and_result = operand_a_i & operand_b_i;
+  assign bw_xor_result = operand_a_i ^ operand_b_i;
+
+  always_comb begin
+    unique case (alu_operator_i)
+      ALU_OR : bw_result = bw_or_result;
+      ALU_AND: bw_result = bw_and_result;
+      default: bw_result = bw_xor_result;
+    endcase
+  end
 
 
   //////////
@@ -516,19 +592,16 @@ module ibex_alu_pext #(
     unique case ({width32_i, width8_i})
       2'b01  : operand_negative = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]} & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
       2'b10  : operand_negative = {4{operand_a_i[31]}} & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
-      default: operand_negative = { {2{operand_a_i[31]}}, {2{operand_a_i[15]}} } & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
+      default: operand_negative = {{2{operand_a_i[31]}}, {2{operand_a_i[15]}}} & {4{((~imm_val_i[4] & ~width32_i) | signed_ops_i)}};
     endcase
   end
 
   // Detect if saturation is occuring
-  logic[4:0] clip_len;
-  assign clip_len = {(width32_i ? ~imm_val_i[4] : 1'b1), ~imm_val_i[3:0]};
-
   logic[3:0] clrs_res;
-  assign clrs_res = { (bit_cnt_result[27:24] <= {1'b0, clip_len[2:0]}), 
-                      (bit_cnt_result[20:16] <= {1'b0, width8_i ? 1'b0 : clip_len[3], clip_len[2:0]}),
-                      (bit_cnt_result[11:8]  <= {1'b0, clip_len[2:0]}), 
-                      (bit_cnt_result[5:0]   <= {1'b0, ~width32_i ? 1'b0 : clip_len[4], width8_i ? 1'b0 : clip_len[3], clip_len[2:0]}) };
+  assign clrs_res = { (bit_cnt_result[27:24] <= {1'b0, ~imm_val_i[2:0]}), 
+                      (bit_cnt_result[20:16] <= {1'b0, width8_i ? 1'b0 : ~imm_val_i[3], ~imm_val_i[2:0]}),
+                      (bit_cnt_result[11:8]  <= {1'b0, ~imm_val_i[2:0]}), 
+                      (bit_cnt_result[5:0]   <= {1'b0, (~width32_i ? 1'b0 : ~imm_val_i[4]), (width8_i ? 1'b0 : ~imm_val_i[3]), ~imm_val_i[2:0]}) };
 
   logic[3:0] clip_saturation;
   always_comb begin
@@ -675,7 +748,7 @@ module ibex_alu_pext #(
   always_comb begin
     unpack_result = '0;
 
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       ZPN_SUNPKD810: unpack_result = { {8{byte1[7]}}, byte1, {8{byte0[7]}}, byte0};
       ZPN_SUNPKD820: unpack_result = { {8{byte2[7]}}, byte2, {8{byte0[7]}}, byte0};
       ZPN_SUNPKD830: unpack_result = { {8{byte3[7]}}, byte3, {8{byte0[7]}}, byte0};
@@ -692,7 +765,7 @@ module ibex_alu_pext #(
 
 
   /////////////
-  // PACKING //
+  // PACKING //   // TODO: add packu
   /////////////
   logic[31:0] packing_result;
   logic[15:0] paking_half_a0, paking_half_a1, paking_half_b0, paking_half_b1;
@@ -704,7 +777,7 @@ module ibex_alu_pext #(
 
   always_comb begin
     packing_result = '0;
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       ZPN_PKBB16: packing_result = {paking_half_a0, paking_half_b0};
       ZPN_PKBT16: packing_result = {paking_half_a0, paking_half_b1};
       ZPN_PKTB16: packing_result = {paking_half_a1, paking_half_b0};
@@ -724,7 +797,7 @@ module ibex_alu_pext #(
 
   always_comb begin
     insb_result = '0;
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       ZPN_INSB0: insb_result = {operand_rd_i[31:8], insb_byte};
       ZPN_INSB1: insb_result = {operand_rd_i[31:16], insb_byte, operand_rd_i[7:0]};
       ZPN_INSB2: insb_result = {operand_rd_i[31:24], insb_byte, operand_rd_i[15:0]};
@@ -734,14 +807,15 @@ module ibex_alu_pext #(
   end
 
 
-  ////////////////
-  // Result mux //
-  ////////////////
+  ////////////////////
+  // Zpn Result mux //
+  ////////////////////
+  logic[31:0] zpn_result;
   always_comb begin
-    result_o   = '0;
+    zpn_result   = '0;
 
     if (enable_i) begin
-      unique case (operator_i)
+      unique case (zpn_operator_i)
         // Adder operation
         // Misc   // TODO: Add rounding ops here
         ZPN_AVE,
@@ -774,7 +848,7 @@ module ibex_alu_pext #(
         ZPN_KSTAS16,  ZPN_KSTSA16,
         ZPN_URSTAS16, ZPN_URSTSA16,
         ZPN_UKSTAS16, ZPN_UKSTSA16,
-        ZPN_STAS16,   ZPN_STSA16: result_o = adder_result;
+        ZPN_STAS16,   ZPN_STSA16: zpn_result = adder_result;
         
         // SIMD multiplication ops
         // 8x8       32x32         32x16          16x16      
@@ -806,28 +880,28 @@ module ibex_alu_pext #(
                                                   ZPN_KDMABT,
                                                   ZPN_KDMATT,
                                                   ZPN_KHM16,
-                                                  ZPN_KHMX16: result_o = mult_result;
+                                                  ZPN_KHMX16: zpn_result = mult_result;
 
         // Comparison ops
         ZPN_CMPEQ16,  ZPN_CMPEQ8,
         ZPN_SCMPLT16, ZPN_SCMPLT8,
         ZPN_SCMPLE16, ZPN_SCMPLE8,
         ZPN_UCMPLT16, ZPN_UCMPLT8,
-        ZPN_UCMPLE16, ZPN_UCMPLE8: result_o = comp_result;
+        ZPN_UCMPLE16, ZPN_UCMPLE8: zpn_result = comp_result;
 
         // Min/Max ops
         ZPN_SMIN16, ZPN_SMIN8,
         ZPN_SMAX16, ZPN_SMAX8,
         ZPN_UMIN16, ZPN_UMIN8,
-        ZPN_UMAX16, ZPN_UMAX8: result_o = minmax_result;
+        ZPN_UMAX16, ZPN_UMAX8: zpn_result = minmax_result;
 
         // Abs ops
         ZPN_KABS16, ZPN_KABS8,
-        ZPN_KABSW: result_o = abs_result;
+        ZPN_KABSW: zpn_result = abs_result;
 
         // Clip ops
         ZPN_SCLIP32, ZPN_SCLIP16,
-        ZPN_UCLIP32, ZPN_SCLIP8: result_o = clip_result;
+        ZPN_UCLIP32, ZPN_SCLIP8: zpn_result = clip_result;
 
         // Shift ops      // Omitting rounding shifts for now   // KSLRA8.u KSLRA16.u
         ZPN_SRA16,    ZPN_SRA8,
@@ -838,30 +912,73 @@ module ibex_alu_pext #(
         ZPN_SLLI16,   ZPN_SLLI8,
         ZPN_KSLL16,   ZPN_KSLL8,      // TODO ========================================
         ZPN_KSLLI16,  ZPN_KSLLI8,
-        ZPN_KSLRA16,  ZPN_KSLRA8: result_o = shift_result;
+        ZPN_KSLRA16,  ZPN_KSLRA8: zpn_result = shift_result;
         
         // Bit-count ops
         ZPN_CLRS16, ZPN_CLRS8, ZPN_CLRS32,
-        ZPN_CLZ16,  ZPN_CLZ8: result_o = bit_cnt_result;
+        ZPN_CLZ16,  ZPN_CLZ8: zpn_result = bit_cnt_result;
 
         // Unpack ops
         ZPN_SUNPKD810, ZPN_ZUNPKD810,
         ZPN_SUNPKD820, ZPN_ZUNPKD820,
         ZPN_SUNPKD830, ZPN_ZUNPKD830,
         ZPN_SUNPKD831, ZPN_ZUNPKD831,
-        ZPN_SUNPKD832, ZPN_ZUNPKD832: result_o = unpack_result;
+        ZPN_SUNPKD832, ZPN_ZUNPKD832: zpn_result = unpack_result;
 
         // Packing ops
         ZPN_PKBB16, ZPN_PKBT16,
-        ZPN_PKTB16, ZPN_PKTT16: result_o = packing_result;
+        ZPN_PKTB16, ZPN_PKTT16: zpn_result = packing_result;
 
         // INSB ops
         ZPN_INSB0, ZPN_INSB1,
-        ZPN_INSB2, ZPN_INSB3: result_o = insb_result;
+        ZPN_INSB2, ZPN_INSB3: zpn_result = insb_result;
 
         default: ;
       endcase
     end
+  end
+
+
+  //////////////////////
+  // Final Result mux //
+  //////////////////////
+  logic[31:0] alu_result;
+  always_comb begin
+    unique case(alu_operator_i)
+      // Bitwise Logic Operations
+      ALU_XOR,  ALU_OR,
+      ALU_AND: result_o = bw_result;
+
+      // Adder Operations
+      ALU_ADD,  ALU_SUB: result_o = adder_result;
+
+      // Shift Operations
+      ALU_SLL,  ALU_SRL,
+      ALU_SRA: result_o = shift_result;
+
+      // Comparison Operations
+      ALU_EQ,   ALU_NE,
+      ALU_GE,   ALU_GEU,
+      ALU_LT,   ALU_LTU,
+      ALU_SLT,  ALU_SLTU: result_o = {31'h0, comp_result[0]};
+
+      // MinMax Operations (Zbpbo)
+      ALU_MIN,  ALU_MAX,
+      ALU_MINU, ALU_MAXU: result_o = minmax_result;
+
+      // Bitcount Operations (Zbpbo)
+      ALU_CLZ: result_o = bitcnt_result;
+
+      // Pack Operations (Zbpbo)
+      ALU_PACK, ALU_PACKU: result_o = pack_result;
+
+      // TODO: Add the rest from Zbpbo
+      
+      // P-ext ALU output
+      ZPN_INSTR:  result_o = zpn_result;
+
+      default: ;
+    endcase
   end
 
 endmodule
