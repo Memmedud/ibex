@@ -30,12 +30,21 @@ module ibex_mult_pext (
 
   import ibex_pkg_pext::*;
 
+  //////////    __  __       _ _   _       _ _              //////////
+  //////////   |  \/  |     | | | (_)     | (_)             //////////
+  //////////   | \  / |_   _| | |_ _ _ __ | |_  ___ _ __    //////////
+  //////////   | |\/| | | | | | __| | '_ \| | |/ _ \ '__|   //////////
+  //////////   | |  | | |_| | | |_| | |_) | | |  __/ |      //////////
+  //////////   |_|  |_|\__,_|_|\__|_| .__/|_|_|\___|_|      //////////
+  //////////                        | |                     //////////
+  //////////                        |_|                     //////////
+
   // Decode when operands should be crossed
   logic crossed;
   always_comb begin
     unique case (operator_i)
       // "Real" crossed ops
-      ZPN_KHMX16, ZPN_KHMX8,    // 8x8 needs some special treatment //TODO
+      ZPN_KHMX16, ZPN_KHMX8,        // 8x8 needs some special treatment //TODO
       ZPN_SMXDS,  ZPN_KMAXDA,
       ZPN_KMXDA,  ZPN_KMAXDS, 
       ZPN_KMSXDA,
@@ -428,5 +437,183 @@ module ibex_mult_pext (
       end
     end
   end
+
+
+  //////////    _____   _         _     _              //////////
+  //////////   |  __ \ (_)       (_)   | |             //////////
+  //////////   | |  | | _ __   __ _  __| | ___ _ __    //////////
+  //////////   | |  | || |\ \ / /| |/ _` |/ _ \ '__|   //////////
+  //////////   | |__| || | \ V / | | (_| |  __/ |      //////////
+  //////////   |_____/ |_|  \_/  |_|\__,_|\___|_|      //////////
+  //////////                                           //////////
+                                      
+  /*
+
+  // Divider signals
+  logic        div_sign_a, div_sign_b;
+  logic        is_greater_equal;
+  logic        div_change_sign, rem_change_sign;
+  logic [31:0] one_shift;
+  logic [31:0] op_denominator_q;
+  logic [31:0] op_numerator_q;
+  logic [31:0] op_quotient_q;
+  logic [31:0] op_denominator_d;
+  logic [31:0] op_numerator_d;
+  logic [31:0] op_quotient_d;
+  logic [31:0] next_remainder;
+  logic [32:0] next_quotient;
+  logic [31:0] res_adder_h;
+  logic        div_valid;
+  logic [ 4:0] div_counter_q, div_counter_d;
+  logic        multdiv_en;
+  logic        mult_hold;
+  logic        div_hold;
+  logic        div_by_zero_d, div_by_zero_q;
+
+  logic        mult_en_internal;
+  logic        div_en_internal;
+
+  assign res_adder_h    = alu_adder_ext_i[32:1];
+  logic [1:0] unused_alu_adder_ext;
+  assign unused_alu_adder_ext = {alu_adder_ext_i[33],alu_adder_ext_i[0]};
+
+  assign next_remainder = is_greater_equal ? res_adder_h[31:0] : imd_val_q_i[0][31:0];
+  assign next_quotient  = is_greater_equal ? {1'b0, op_quotient_q} | {1'b0, one_shift} :
+                                             {1'b0, op_quotient_q};
+
+  assign one_shift      = {31'b0, 1'b1} << div_counter_q;
+
+  // The adder in the ALU computes alu_operand_a_o + alu_operand_b_o which means
+  // Remainder - Divisor. If Remainder - Divisor >= 0, is_greater_equal is equal to 1,
+  // the next Remainder is Remainder - Divisor contained in res_adder_h and the
+  always_comb begin
+    if ((imd_val_q_i[0][31] ^ op_denominator_q[31]) == 1'b0) begin
+      is_greater_equal = (res_adder_h[31] == 1'b0);
+    end else begin
+      is_greater_equal = imd_val_q_i[0][31];
+    end
+  end
+
+  assign div_sign_a      = op_a_i[31] & signed_mode_i[0];
+  assign div_sign_b      = op_b_i[31] & signed_mode_i[1];
+  assign div_change_sign = (div_sign_a ^ div_sign_b) & ~div_by_zero_q;
+  assign rem_change_sign = div_sign_a;
+
+
+  always_comb begin
+    div_counter_d    = div_counter_q - 5'h1;
+    op_remainder_d   = imd_val_q_i[0];
+    op_quotient_d    = op_quotient_q;
+    md_state_d       = md_state_q;
+    op_numerator_d   = op_numerator_q;
+    op_denominator_d = op_denominator_q;
+    alu_operand_a_o  = {32'h0  , 1'b1};
+    alu_operand_b_o  = {~op_b_i, 1'b1};
+    div_valid        = 1'b0;
+    div_hold         = 1'b0;
+    div_by_zero_d    = div_by_zero_q;
+
+    unique case (md_state_q)
+      MD_IDLE: begin
+        if (operator_i == MD_OP_DIV) begin
+          // Check if the Denominator is 0
+          // quotient for division by 0 is specified to be -1
+          // Note with data-independent time option, the full divide operation will proceed as
+          // normal and will naturally return -1
+          op_remainder_d = '1;
+          // SEC_CM: CORE.DATA_REG_SW.SCA
+          md_state_d     = (!data_ind_timing_i && equal_to_zero_i) ? MD_FINISH : MD_ABS_A;
+          // Record that this is a div by zero to stop the sign change at the end of the
+          // division (in data_ind_timing mode).
+          div_by_zero_d  = equal_to_zero_i;
+        end else begin
+          // Check if the Denominator is 0
+          // remainder for division by 0 is specified to be the numerator (operand a)
+          // Note with data-independent time option, the full divide operation will proceed as
+          // normal and will naturally return operand a
+          op_remainder_d = {2'b0, op_a_i};
+          // SEC_CM: CORE.DATA_REG_SW.SCA
+          md_state_d     = (!data_ind_timing_i && equal_to_zero_i) ? MD_FINISH : MD_ABS_A;
+        end
+        // 0 - B = 0 iff B == 0
+        alu_operand_a_o  = {32'h0  , 1'b1};
+        alu_operand_b_o  = {~op_b_i, 1'b1};
+        div_counter_d    = 5'd31;
+      end
+
+      MD_ABS_A: begin
+        // quotient
+        op_quotient_d   = '0;
+        // A abs value
+        op_numerator_d  = div_sign_a ? alu_adder_i : op_a_i;
+        md_state_d      = MD_ABS_B;
+        div_counter_d   = 5'd31;
+        // ABS(A) = 0 - A
+        alu_operand_a_o = {32'h0  , 1'b1};
+        alu_operand_b_o = {~op_a_i, 1'b1};
+      end
+
+      MD_ABS_B: begin
+        // remainder
+        op_remainder_d   = { 33'h0, op_numerator_q[31]};
+        // B abs value
+        op_denominator_d = div_sign_b ? alu_adder_i : op_b_i;
+        md_state_d       = MD_COMP;
+        div_counter_d    = 5'd31;
+        // ABS(B) = 0 - B
+        alu_operand_a_o  = {32'h0  , 1'b1};
+        alu_operand_b_o  = {~op_b_i, 1'b1};
+      end
+
+      MD_COMP: begin
+        op_remainder_d  = {1'b0, next_remainder[31:0], op_numerator_q[div_counter_d]};
+        op_quotient_d   = next_quotient[31:0];
+        md_state_d      = (div_counter_q == 5'd1) ? MD_LAST : MD_COMP;
+        // Division
+        alu_operand_a_o = {imd_val_q_i[0][31:0], 1'b1}; // it contains the remainder
+        alu_operand_b_o = {~op_denominator_q[31:0], 1'b1};  // -denominator two's compliment
+      end
+
+      MD_LAST: begin
+        if (operator_i == MD_OP_DIV) begin
+          // this time we save the quotient in op_remainder_d (i.e. imd_val_q_i[0]) since
+          // we do not need anymore the remainder
+          op_remainder_d = {1'b0, next_quotient};
+        end else begin
+          // this time we do not save the quotient anymore since we need only the remainder
+          op_remainder_d = {2'b0, next_remainder[31:0]};
+        end
+        // Division
+        alu_operand_a_o  = {imd_val_q_i[0][31:0], 1'b1}; // it contains the remainder
+        alu_operand_b_o  = {~op_denominator_q[31:0], 1'b1};  // -denominator two's compliment
+
+        md_state_d = MD_CHANGE_SIGN;
+      end
+
+      MD_CHANGE_SIGN: begin
+        md_state_d  = MD_FINISH;
+        if (operator_i == MD_OP_DIV) begin
+          op_remainder_d = (div_change_sign) ? {2'h0, alu_adder_i} : imd_val_q_i[0];
+        end else begin
+          op_remainder_d = (rem_change_sign) ? {2'h0, alu_adder_i} : imd_val_q_i[0];
+        end
+        // ABS(Quotient) = 0 - Quotient (or Remainder)
+        alu_operand_a_o  = {32'h0  , 1'b1};
+        alu_operand_b_o  = {~imd_val_q_i[0][31:0], 1'b1};
+      end
+
+      MD_FINISH: begin
+        // Hold result until ID stage is ready to accept it
+        // Note no state transition will occur if div_hold is set
+        md_state_d = MD_IDLE;
+        div_hold   = ~multdiv_ready_id_i;
+        div_valid   = 1'b1;
+      end
+
+      default: begin
+        md_state_d = MD_IDLE;
+      end
+    endcase // md_state_q
+  end*/
 
 endmodule
