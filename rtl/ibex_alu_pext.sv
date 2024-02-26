@@ -476,22 +476,27 @@ module ibex_alu_pext #(
   logic[31:0] shift_operand_tmp;
   logic       shift_signed;
   always_comb begin
-    unique case (zpn_operator_i)
-      ZPN_SCLIP16,  ZPN_SCLIP8,
-      ZPN_SCLIP32,  ZPN_UCLIP32: begin
-        shift_operand = 32'hffff_ffff;
-        shift_signed  = 1'b0;
+    unique case (alu_operator_i)
+      ZPN_INSTR: begin
+        unique case (zpn_operator_i)
+          ZPN_SCLIP16,  ZPN_SCLIP8,
+          ZPN_SCLIP32,  ZPN_UCLIP32: begin
+            shift_operand = 32'hffff_ffff;
+            shift_signed  = 1'b0;
+          end
+
+          default: begin
+            shift_operand_tmp = operand_a_i;
+            shift_signed      = signed_ops;
+          end
+        endcase
       end
 
-      default: begin
-        shift_operand_tmp = operand_a_i;
-        shift_signed      = signed_ops;
-      end
+      ALU_SRA: shift_signed = 1'b1;
+
+      default: shift_signed = 1'b0;
     endcase
   end
-
-  logic unused_shift_signed;
-  assign unused_shift_signed = shift_signed;
 
   // bit-reverse operand_a for left shifts
   logic[31:0] shift_operand_rev;
@@ -511,7 +516,7 @@ module ibex_alu_pext #(
   logic[32:0] shift_result_raw;
   logic       unused_shift_result;
 
-  assign shift_result_raw = $signed({signed_ops & shift_operand[31], shift_operand}) >>> shift_amt;
+  assign shift_result_raw = $signed({shift_signed & shift_operand[31], shift_operand}) >>> shift_amt;
   assign unused_shift_result = shift_result_raw[32];
 
   logic[31:0] shift_result_full;
@@ -561,7 +566,7 @@ module ibex_alu_pext #(
   assign shift_result = shift_left ? shift_result_rev : shift_result_full;
 
 
-  /////////////////// // TODO: Consider adding negate ops from RV32B
+  ///////////////////
   // Bitwise Logic //
   ///////////////////
   logic[31:0] bw_or_result, bw_and_result, bw_xor_result, bw_result;
@@ -962,7 +967,7 @@ module ibex_alu_pext #(
 
       // MinMax ops (Zbpbo)
       ALU_MIN,  ALU_MAX,
-      ALU_MINU, ALU_MAXU: result_o = minmax_result;
+      ALU_MINU, ALU_MAXU: result_o = minmax_result;// TODO: check out how unsigned is handled here
 
       // Bitcount ops (Zbpbo)
       ALU_CLZ: result_o = bit_cnt_result;
