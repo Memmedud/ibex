@@ -3,6 +3,9 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
+`define OP_L 15:0
+`define OP_H 31:16
+
 /*
  * Special multiplier for P-extension
  */
@@ -12,23 +15,45 @@ module ibex_mult_pext (
   input  logic                      rst_ni,
 
   input  logic                      mult_en_i,
-  //input  logic                      multdiv_sel_i,
+  input  logic                      div_en_i,
+  input  logic                      mult_sel_i,
+  input  logic                      div_sel_i,
 
-  input  ibex_pkg_pext::zpn_op_e    operator_i,
+  input  ibex_pkg_pext::zpn_op_e    zpn_operator_i,
+  input  logic[1:0]                 signed_mode_i,
+  input  ibex_pkg::md_op_e          md_operator_i,
 
   input  logic[31:0]                op_a_i,
   input  logic[31:0]                op_b_i,
   input  logic[31:0]                rd_val_i,
+  input  logic[33:0]                alu_adder_ext_i,
+  input  logic[31:0]                alu_adder_i,
+  input  logic                      equal_to_zero_i,
+  input  logic                      data_ind_timing_i,
 
-  //output logic[31:0]                accum_alu_o,
-  //output logic[31:0]                mult_result_alu_o,
+  output logic [32:0]               alu_operand_a_o,
+  output logic [32:0]               alu_operand_b_o,
 
-  output logic[31:0]                mult_result_o,
-  output logic                      valid_o
-  //output logic                      mult_set_ov_o
+  input  logic[33:0]                imd_val_q_i[2],
+  output logic[33:0]                imd_val_d_o[2],
+  output logic[1:0]                 imd_val_we_o,
+
+  input  logic                      multdiv_ready_id_i,
+
+  output logic[31:0]                multdiv_result_o,
+  output logic                      valid_o,
+  output logic                      set_ov_o
 );
 
   import ibex_pkg_pext::*;
+  import ibex_pkg::*;
+
+  // Common signals and logic
+  logic[31:0] mult_result;
+  assign multdiv_result_o = div_sel_i ? imd_val_q_i[0][31:0] : mult_result;
+
+  assign set_ov_o = 1'b0;
+
 
   //////////    __  __       _ _   _       _ _              //////////
   //////////   |  \/  |     | | | (_)     | (_)             //////////
@@ -39,10 +64,13 @@ module ibex_mult_pext (
   //////////                        | |                     //////////
   //////////                        |_|                     //////////
 
+  logic mult_valid;
+  assign mult_valid = 1'b1;
+
   // Decode when operands should be crossed
   logic crossed;
   always_comb begin
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       // "Real" crossed ops
       ZPN_KHMX16, ZPN_KHMX8,        // 8x8 needs some special treatment //TODO
       ZPN_SMXDS,  ZPN_KMAXDA,
@@ -63,7 +91,7 @@ module ibex_mult_pext (
   // Decode MAC-ops
   logic accum_en;
   always_comb begin
-    unique case(operator_i)
+    unique case(zpn_operator_i)
       // 8x8        32x32         32x16         16x16
       ZPN_SMAQA,    ZPN_KMMAC,    ZPN_KMMAWB,   ZPN_KMABB,
       ZPN_SMAQAsu,  ZPN_KMMACu,   ZPN_KMMAWBu,  ZPN_KMABT,
@@ -86,7 +114,7 @@ module ibex_mult_pext (
   // Decode Rounding ops
   logic[23:0] rounding_mask;
   always_comb begin
-    unique case(operator_i)
+    unique case(zpn_operator_i)
       // 32x32
       ZPN_SMMULu,   ZPN_KMMACu,
       ZPN_KMMSBu,   ZPN_KWMMULu: rounding_mask = 24'h00_0;
@@ -184,20 +212,86 @@ module ibex_mult_pext (
   assign unused_mult_bits = {mult_ker0_sum00[17:16], mult_ker0_sum01[17:16], mult_ker0_sum10[17:16], mult_ker0_sum11[17:16],
                              mult_ker1_sum00[17:16], mult_ker1_sum01[17:16], mult_ker1_sum10[17:16], mult_ker1_sum11[17:16]};
 
+  
+  /////////////////////////
+  // 16x16 Kernel adders //
+  /////////////////////////
+
+  // Prepare operands
+  logic wide_ops;
+  logic[15:0] sum_ker0_op_a0, sum_ker0_op_a1, sum_ker1_op_a0, sum_ker1_op_a1;
+  logic[15:0] sum_ker0_op_b0, sum_ker0_op_b1, sum_ker1_op_b0, sum_ker1_op_b1;
+  logic[23:0] sum_ker0_op_a, sum_ker0_op_b, sum_ker1_op_a, sum_ker1_op_b;
+
+  logic[16:0] sum_ker0_0, sum_ker0_1, sum_ker1_0, sum_ker1_1;
+  logic[24:0] sum_ker0, sum_ker1;
+
+  // TODO
+  logic unused_sum_ker1, unused_sum_ker1_1;
+  assign unused_sum_ker1 = sum_ker1[24];
+  assign unused_sum_ker1_1 = sum_ker1_1[16];
+
+  assign wide_ops = (mult_mode != M8x8);
+
+  assign sum_ker0_op_a0 = wide_ops ? mult_ker0_sum01[15:0] : mult_ker0_sum11[15:0];
+  assign sum_ker0_op_a1 = wide_ops ? mult_ker0_sum11[15:0] : mult_ker1_sum11[15:0];
+  assign sum_ker1_op_a0 = mult_ker1_sum01[15:0];
+  assign sum_ker1_op_a1 = mult_ker1_sum11[15:0];
+  assign sum_ker0_op_b0 = wide_ops ? {{8{mult_ker0_sum00[16]}}, mult_ker0_sum00[15:8]} : mult_ker0_sum00[15:0];
+  assign sum_ker0_op_b1 = wide_ops ? {{8{mult_ker0_sum10[16]}}, mult_ker0_sum10[15:8]} : mult_ker1_sum00[15:0];
+  assign sum_ker1_op_b0 = {{8{mult_ker1_sum00[16]}}, mult_ker1_sum00[15:8]};
+  assign sum_ker1_op_b1 = {{8{mult_ker1_sum10[16]}}, mult_ker1_sum10[15:8]};
+
+  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]} : {{7{sum_ker0_1[16]}}, sum_ker0_1};
+  assign sum_ker0_op_b = wide_ops ? {{8{sum_ker0_0[16]}}, sum_ker0_0[15:0]}  : {{7{sum_ker0_0[16]}}, sum_ker0_0};
+  assign sum_ker1_op_a = {sum_ker1_1[15:0], mult_ker1_sum10[7:0]};
+  assign sum_ker1_op_b = {{8{sum_ker1_0[16]}}, sum_ker1_0[15:0]};
+
+  // Actual adders
+  assign sum_ker0_0 = $signed(sum_ker0_op_a0) + $signed(sum_ker0_op_b0);  
+  assign sum_ker0_1 = $signed(sum_ker0_op_a1) + $signed(sum_ker0_op_b1);
+  assign sum_ker1_0 = $signed(sum_ker1_op_a0) + $signed(sum_ker1_op_b0);  
+  assign sum_ker1_1 = $signed(sum_ker1_op_a1) + $signed(sum_ker1_op_b1);
+
+  assign sum_ker0 = $signed(sum_ker0_op_a) + $signed(sum_ker0_op_b);
+  assign sum_ker1 = $signed(sum_ker1_op_a) + $signed(sum_ker1_op_b);
+
+  /////////////////////////
+  // 32x16 Kernel adders //
+  /////////////////////////
+  // This need to support both 8x8 accum, 16x16 adds and generation of 32x16
+  logic[31:0] sum_op_a, sum_op_b;
+  logic[32:0] sum_total;
+
+  assign sum_op_a = {sum_ker1[23:0], sum_ker1_0[7:0]};
+  assign sum_op_b = {{16{sum_ker0[24]}}, sum_ker0[23:8]};   // TODO
+
+  assign sum_total = $signed(sum_op_a) + $signed(sum_op_b);
+
+  // TODO
+  logic unused_sum_total;
+  assign unused_sum_total = sum_total[32];
+  
 
   /////////////////
   // 8x8 results //
   /////////////////
-  logic[17:0] mult_sum_8x8_0, mult_sum_8x8_1, mult_sum_8x8_2, mult_sum_8x8_3;
-  assign mult_sum_8x8_0 = mult_ker0_sum00;
-  assign mult_sum_8x8_1 = mult_ker0_sum11;
-  assign mult_sum_8x8_2 = mult_ker1_sum00;
-  assign mult_sum_8x8_3 = mult_ker1_sum11;
+  logic[15:0] mult_sum_8x8_0, mult_sum_8x8_1, mult_sum_8x8_2, mult_sum_8x8_3;
+  assign mult_sum_8x8_0 = mult_ker0_sum00[15:0];
+  assign mult_sum_8x8_1 = mult_ker0_sum11[15:0];
+  assign mult_sum_8x8_2 = mult_ker1_sum00[15:0];
+  assign mult_sum_8x8_3 = mult_ker1_sum11[15:0];
 
 
   ///////////////////
   // 16x16 results //
   ///////////////////
+  logic[31:0] mult_sum_16x16_0, mult_sum_16x16_1;
+  assign mult_sum_16x16_0 = {sum_ker0[23:0], sum_ker0_0[7:0]};
+  assign mult_sum_16x16_1 = {sum_ker1[23:0], sum_ker1_0[7:0]};
+
+
+  /* For Reference    // TODO: Remove this when everything is working
   logic[31:0] mult_ker0_sum, mult_ker1_sum;
   logic[24:0] mult_sum_16x16_partial00, mult_sum_16x16_partial01, mult_sum_16x16_partial10, mult_sum_16x16_partial11;
   logic[1:0] unused_thingy;
@@ -212,16 +306,16 @@ module ibex_mult_pext (
   assign mult_sum_16x16_partial10 = {$signed(mult_ker1_sum01[16:0]) + $signed({ {8{mult_ker1_sum00[16]}}, mult_ker1_sum00[15:8]}), mult_ker1_sum00[7:0]};
   assign mult_sum_16x16_partial11 = {$signed(mult_ker1_sum11[16:0]) + $signed({ {8{mult_ker1_sum10[16]}}, mult_ker1_sum10[15:8]}), mult_ker1_sum10[7:0]};
   assign mult_ker1_sum = {mult_sum_16x16_partial11[23:0] + { {8{mult_sum_16x16_partial10[24]}}, mult_sum_16x16_partial10[23:8]}, mult_sum_16x16_partial10[7:0]};
-
+//*/
 
   ///////////////////
   // 32x16 results //
   ///////////////////
   logic[47:0] mult_sum_32x16;
   logic[31:0] mult_sum_32x16_MSW;
-  // TODO: Do this through a GP adder that can be shared with accum and 32x32   // TODO: also use this for rounding
-  assign mult_sum_32x16 = {mult_ker1_sum[31:0] + { {16{mult_ker0_sum[31]}}, mult_ker0_sum[31:16]}, mult_ker0_sum[15:0]};
-  // TODO Check if we can get away with only calculating 32-MSB, only saving 32 MSB in accum at least
+
+  assign mult_sum_32x16 = {sum_total[31:0], sum_ker0[15:0]};
+  //assign mult_sum_32x16 = {mult_ker1_sum[31:0] + { {16{mult_ker0_sum[31]}}, mult_ker0_sum[31:16]}, mult_ker0_sum[15:0]};
   assign mult_sum_32x16_MSW = mult_sum_32x16[47:16];
 
 
@@ -273,45 +367,46 @@ module ibex_mult_pext (
                                  saturated[2] ? 8'h7f : mult_sum_8x8_2[14:7],
                                  saturated[0] ? 8'h7f : mult_sum_8x8_0[14:7]};
 
-      M16x16: mult_sat_result = {(saturated[3] & saturated[2]) ? 16'h7fff : mult_ker0_sum[30:15], // TODO this works for now
-                                 (saturated[1] & saturated[0]) ? 16'h7fff : mult_ker1_sum[30:15]};
+      M16x16: mult_sat_result = {(saturated[3] & saturated[2]) ? 16'h7fff : mult_sum_16x16_0[30:15], // TODO this works for now
+                                 (saturated[1] & saturated[0]) ? 16'h7fff : mult_sum_16x16_1[30:15]};
 
       M32x32: mult_sat_result = saturated[3] ? 32'h7fff_ffff: mult_sum_32x32_MSW;
       M32x16: mult_sat_result = '0;
     endcase
   end
 
-  logic[9:0] unused0, unused1, unused2, unused3;
-  assign unused0 = {mult_sum_8x8_0[17:15], mult_sum_8x8_0[6:0]};
-  assign unused1 = {mult_sum_8x8_1[17:15], mult_sum_8x8_1[6:0]};
-  assign unused2 = {mult_sum_8x8_2[17:15], mult_sum_8x8_2[6:0]};
-  assign unused3 = {mult_sum_8x8_3[17:15], mult_sum_8x8_3[6:0]};
+  logic[7:0] unused0, unused1, unused2, unused3;
+  assign unused0 = {mult_sum_8x8_0[15], mult_sum_8x8_0[6:0]};
+  assign unused1 = {mult_sum_8x8_1[15], mult_sum_8x8_1[6:0]};
+  assign unused2 = {mult_sum_8x8_2[15], mult_sum_8x8_2[6:0]};
+  assign unused3 = {mult_sum_8x8_3[15], mult_sum_8x8_3[6:0]};
+
 
   //////////////////////
   // Final result Mux //
   //////////////////////
   always_comb begin
-    unique case(operator_i)
+    unique case(zpn_operator_i)
       // Saturating results
       ZPN_KHM16,  ZPN_KHMX16,
-      ZPN_KHM8,   ZPN_KHMX8: mult_result_o = mult_sat_result;
+      ZPN_KHM8,   ZPN_KHMX8: mult_result = mult_sat_result;
 
       // Non-SIMD 16x16
-      ZPN_SMBB16, ZPN_SMBT16: mult_result_o = mult_ker0_sum;
-      ZPN_SMTT16            : mult_result_o = mult_ker1_sum;
+      ZPN_SMBB16, ZPN_SMBT16: mult_result = mult_sum_16x16_0;
+      ZPN_SMTT16            : mult_result = mult_sum_16x16_1;
 
       // 32x16 ops
       ZPN_SMMWB,  ZPN_SMMWBu,
       ZPN_SMMWT,  ZPN_SMMWTu,
       ZPN_KMMWB2, ZPN_KMMWB2u,// TODO: KMMWB2 not correct
-      ZPN_KMMWT2, ZPN_KMMWT2u: mult_result_o = mult_sum_32x16_MSW;
+      ZPN_KMMWT2, ZPN_KMMWT2u: mult_result = mult_sum_32x16_MSW;
 
       // 32x32 ops
       ZPN_SMMUL,  ZPN_SMMULu, // TODO: KWMMUL is not completely correct
-      ZPN_KWMMUL, ZPN_KWMMULu: mult_result_o = mult_sum_32x32_MSW;
+      ZPN_KWMMUL, ZPN_KWMMULu: mult_result = mult_sum_32x32_MSW;
 
       // All other are processed in ALU
-      default: mult_result_o = '0;
+      default: mult_result = '0;
     endcase
   end
 
@@ -321,7 +416,7 @@ module ibex_mult_pext (
 
   // Generate mult_accum_val_nxt
   always_comb begin
-    unique case(operator_i)
+    unique case(zpn_operator_i)
       ZPN_SMAQA,  ZPN_UMAQA,
       ZPN_SMAQAsu: mult_accum_val_nxt = '0;
       default: mult_accum_val_nxt = mult_sum_32x16[47:16];
@@ -358,7 +453,7 @@ module ibex_mult_pext (
   ibex_pkg_pext::mult_pext_mode_e mult_mode;
 
   always_comb begin
-    unique case (operator_i)
+    unique case (zpn_operator_i)
       ZPN_SMAQA,    ZPN_SMAQAsu,
       ZPN_UMAQA,    ZPN_KHM8,
       ZPN_KHMX8: mult_mode = ibex_pkg_pext::M8x8;
@@ -446,13 +541,13 @@ module ibex_mult_pext (
   //////////   | |__| || | \ V / | | (_| |  __/ |      //////////
   //////////   |_____/ |_|  \_/  |_|\__,_|\___|_|      //////////
   //////////                                           //////////
-                                      
-  /*
 
   // Divider signals
+  logic        signed_mult;
   logic        div_sign_a, div_sign_b;
   logic        is_greater_equal;
   logic        div_change_sign, rem_change_sign;
+  logic [33:0] op_remainder_d;
   logic [31:0] one_shift;
   logic [31:0] op_denominator_q;
   logic [31:0] op_numerator_q;
@@ -467,11 +562,57 @@ module ibex_mult_pext (
   logic [ 4:0] div_counter_q, div_counter_d;
   logic        multdiv_en;
   logic        mult_hold;
+  assign mult_hold = 1'b0; // TODO
   logic        div_hold;
   logic        div_by_zero_d, div_by_zero_q;
 
   logic        mult_en_internal;
   logic        div_en_internal;
+
+  typedef enum logic [2:0] {
+    MD_IDLE, MD_ABS_A, MD_ABS_B, MD_COMP, MD_LAST, MD_CHANGE_SIGN, MD_FINISH
+  } md_fsm_e;
+  md_fsm_e md_state_q, md_state_d;
+
+  logic unused_mult_sel_i;
+  assign unused_mult_sel_i = mult_sel_i;
+
+  assign mult_en_internal = mult_en_i & ~mult_hold;
+  assign div_en_internal  = div_en_i & ~div_hold;
+
+  // Clock in various registers
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (!rst_ni) begin
+      div_counter_q    <= '0;
+      md_state_q       <= MD_IDLE;
+      op_numerator_q   <= '0;
+      op_quotient_q    <= '0;
+      div_by_zero_q    <= '0;
+    end else if (div_en_internal) begin
+      div_counter_q    <= div_counter_d;
+      op_numerator_q   <= op_numerator_d;
+      op_quotient_q    <= op_quotient_d;
+      md_state_q       <= md_state_d;
+      div_by_zero_q    <= div_by_zero_d;
+    end
+  end
+
+  assign multdiv_en = mult_en_internal | div_en_internal;
+
+  // Intermediate value register shared with ALU
+  assign imd_val_d_o[0] = div_sel_i ? op_remainder_d : '0; // TODO
+  assign imd_val_we_o[0] = multdiv_en;
+
+  assign imd_val_d_o[1] = {2'b0, op_denominator_d};
+  assign imd_val_we_o[1] = div_en_internal;
+  assign op_denominator_q = imd_val_q_i[1][31:0];
+  logic [1:0] unused_imd_val;
+  assign unused_imd_val = imd_val_q_i[1][33:32];
+
+  assign signed_mult      = (signed_mode_i != 2'b00);
+  logic unused_signed_mult;
+  assign unused_signed_mult = signed_mult;
+
 
   assign res_adder_h    = alu_adder_ext_i[32:1];
   logic [1:0] unused_alu_adder_ext;
@@ -499,7 +640,7 @@ module ibex_mult_pext (
   assign div_change_sign = (div_sign_a ^ div_sign_b) & ~div_by_zero_q;
   assign rem_change_sign = div_sign_a;
 
-
+  // Divider state machine
   always_comb begin
     div_counter_d    = div_counter_q - 5'h1;
     op_remainder_d   = imd_val_q_i[0];
@@ -515,7 +656,7 @@ module ibex_mult_pext (
 
     unique case (md_state_q)
       MD_IDLE: begin
-        if (operator_i == MD_OP_DIV) begin
+        if (md_operator_i == MD_OP_DIV) begin
           // Check if the Denominator is 0
           // quotient for division by 0 is specified to be -1
           // Note with data-independent time option, the full divide operation will proceed as
@@ -575,7 +716,7 @@ module ibex_mult_pext (
       end
 
       MD_LAST: begin
-        if (operator_i == MD_OP_DIV) begin
+        if (md_operator_i == MD_OP_DIV) begin
           // this time we save the quotient in op_remainder_d (i.e. imd_val_q_i[0]) since
           // we do not need anymore the remainder
           op_remainder_d = {1'b0, next_quotient};
@@ -592,7 +733,7 @@ module ibex_mult_pext (
 
       MD_CHANGE_SIGN: begin
         md_state_d  = MD_FINISH;
-        if (operator_i == MD_OP_DIV) begin
+        if (md_operator_i == MD_OP_DIV) begin
           op_remainder_d = (div_change_sign) ? {2'h0, alu_adder_i} : imd_val_q_i[0];
         end else begin
           op_remainder_d = (rem_change_sign) ? {2'h0, alu_adder_i} : imd_val_q_i[0];
@@ -613,7 +754,9 @@ module ibex_mult_pext (
       default: begin
         md_state_d = MD_IDLE;
       end
-    endcase // md_state_q
-  end*/
+    endcase
+  end
+
+  assign valid_o = mult_valid | div_valid;
 
 endmodule

@@ -81,9 +81,6 @@ module ibex_decoder #(
   output ibex_pkg::md_op_e     multdiv_operator_o,
   output logic [1:0]           multdiv_signed_mode_o,
 
-  // PEXT
-  output logic                 zpn_enable_o,
-
   // CSRs
   output logic                 csr_access_o,          // access to CSR
   output ibex_pkg::csr_op_e    csr_op_o,              // operation to perform on CSR
@@ -237,8 +234,6 @@ module ibex_decoder #(
     wfi_insn_o            = 1'b0;
 
     opcode                = opcode_e'(instr[6:0]);
-
-    zpn_enable_o = (opcode == OPCODE_P);
 
     unique case (opcode)
 

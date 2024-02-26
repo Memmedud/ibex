@@ -70,18 +70,13 @@ module ibex_id_stage #(
   input  logic                      lsu_resp_valid_i, // LSU has valid output, or is done
   // ALU
   output ibex_pkg::alu_op_e         alu_operator_ex_o,
-  output ibex_pkg_pext::zpn_op_e    zpn_operator_ex_o,
   output logic [31:0]               alu_operand_a_ex_o,
   output logic [31:0]               alu_operand_b_ex_o,
 
   // Pext specific
+  output ibex_pkg_pext::zpn_op_e    zpn_operator_ex_o,
   output logic [4:0]                zpn_imm_val_o,
-  output logic                      zpn_imm_instr_o,
   output logic [31:0]               alu_operand_rd_ex_o,
-  output logic                      zpn_width32_o,
-  output logic                      zpn_width8_o,
-  output logic                      zpn_signed_ops_o,
-  output logic                      zpn_enable_o,
 
   // Multicycle Operation Stage Register
   input  logic [1:0]                imd_val_we_ex_i,
@@ -505,8 +500,6 @@ module ibex_id_stage #(
     .multdiv_operator_o   (multdiv_operator),
     .multdiv_signed_mode_o(multdiv_signed_mode),
 
-    .zpn_enable_o         (zpn_enable_o),
-
     // CSRs
     .csr_access_o(csr_access_o),
     .csr_op_o    (csr_op_o),
@@ -523,16 +516,21 @@ module ibex_id_stage #(
   );
 
   if (RV32P == RV32PZpn) begin
+
     ibex_decoder_pext decoder_pext_i (
       .instr_rdata_i        (instr_rdata_i),
       .zpn_operator_o       (zpn_operator_ex_o),
-      .zpn_illegal_insn_o   (),
-      .imm_operand_o        (zpn_imm_val_o),
-      .imm_instr_o          (zpn_imm_instr_o),
-      .width8_o             (zpn_width8_o),
-      .width32_o            (zpn_width32_o),
-      .signed_ops_o         (zpn_signed_ops_o)
+      .zpn_illegal_insn_o   (),     // TODO
+      .imm_operand_o        (zpn_imm_val_o)
     );
+
+  end
+  else begin
+
+    assign zpn_operator_ex_o  = '0;
+    //assign zpn_illegal_insn_o = 1'b0; // TODO
+    assign zpn_imm_val_o      = 1'b0;
+
   end
 
   /////////////////////////////////

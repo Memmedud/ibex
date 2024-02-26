@@ -43,12 +43,7 @@ module ibex_ex_block #(
 
   // Pext signals
   input  ibex_pkg_pext::zpn_op_e  zpn_operator_i,
-  input  logic                    zpn_instr_i,
-  input  logic                    zpn_width32_i,
-  input  logic                    zpn_width8_i,
-  input  logic                    zpn_signed_ops_i,
   input  logic[4:0]               zpn_imm_val_i,
-  input  logic                    zpn_imm_instr_i,
   output logic                    vxsat_set_o,
 
 
@@ -68,38 +63,22 @@ module ibex_ex_block #(
 
   import ibex_pkg::*;
 
-  logic [31:0] alu_result, multdiv_result;
+  logic [31:0] alu_result;
 
-  logic [32:0] multdiv_alu_operand_b, multdiv_alu_operand_a;
-  logic [33:0] alu_adder_result_ext;
-  logic        alu_cmp_result, alu_is_equal_result;
+  logic        alu_cmp_result;
   logic        multdiv_valid;
   logic        multdiv_sel;
-  logic [31:0] alu_imd_val_q[2];
-  logic [31:0] alu_imd_val_d[2];
-  logic [ 1:0] alu_imd_val_we;
-  logic [33:0] multdiv_imd_val_d[2];
-  logic [ 1:0] multdiv_imd_val_we;
 
   /*
-    The multdiv_i output is never selected if RV32M=RV32MNone
-    At synthesis time, all the combinational and sequential logic
-    from the multdiv_i module are eliminated
+  The multdiv_i output is never selected if RV32M=RV32MNone
+  At synthesis time, all the combinational and sequential logic
+  from the multdiv_i module are eliminated
   */
   if (RV32M != RV32MNone) begin : gen_multdiv_m
     assign multdiv_sel = mult_sel_i | div_sel_i;
   end else begin : gen_multdiv_no_m
     assign multdiv_sel = 1'b0;
   end
-
-  // Intermediate Value Register Mux
-  assign imd_val_d_o[0] = multdiv_sel ? multdiv_imd_val_d[0] : {2'b0, alu_imd_val_d[0]};
-  assign imd_val_d_o[1] = multdiv_sel ? multdiv_imd_val_d[1] : {2'b0, alu_imd_val_d[1]};
-  assign imd_val_we_o   = multdiv_sel ? multdiv_imd_val_we : alu_imd_val_we;
-
-  assign alu_imd_val_q = '{imd_val_q_i[0][31:0], imd_val_q_i[1][31:0]};
-
-  assign result_ex_o  = multdiv_sel ? multdiv_result : alu_result;
 
   // branch handling
   assign branch_decision_o  = alu_cmp_result;
@@ -123,11 +102,29 @@ module ibex_ex_block #(
   end
 
 
-  /////////
-  // ALU //
-  /////////
+  ///////////////////////
+  // ALU instantiation //
+  ///////////////////////
 
   if (RV32P == RV32PNone) begin : gen_normal_alu
+    
+    logic [31:0]  multdiv_result;
+    logic [32:0]  multdiv_alu_operand_b, multdiv_alu_operand_a;
+    logic [33:0]  alu_adder_result_ext;
+    logic [31:0]  alu_imd_val_q[2];
+    logic [31:0]  alu_imd_val_d[2];
+    logic [33:0]  multdiv_imd_val_d[2];
+    logic [ 1:0]  multdiv_imd_val_we;
+    logic [ 1:0]  alu_imd_val_we;
+    logic         alu_is_equal_result;
+
+    // Intermediate Value Register Mux
+    assign imd_val_d_o[0]   = multdiv_sel ? multdiv_imd_val_d[0] : {2'b0, alu_imd_val_d[0]};
+    assign imd_val_d_o[1]   = multdiv_sel ? multdiv_imd_val_d[1] : {2'b0, alu_imd_val_d[1]};
+    assign imd_val_we_o     = multdiv_sel ? multdiv_imd_val_we : alu_imd_val_we;
+    
+    assign alu_imd_val_q    = '{imd_val_q_i[0][31:0], imd_val_q_i[1][31:0]};
+    assign result_ex_o      = multdiv_sel ? multdiv_result : alu_result;
     
     ibex_alu #(
       .RV32B(RV32B)
@@ -151,45 +148,6 @@ module ibex_ex_block #(
 
     assign vxsat_set_o = 1'b0;
 
-  end
-  else begin : gen_pext_alu
-    
-    ibex_alu_pext alu_pext_i (
-      .clk_i                (clk_i),
-      .rst_ni               (rst_ni),
-      .zpn_operator_i       (zpn_operator_i),
-      .zpn_instr_i          (zpn_instr_i),
-      .alu_operator_i       (alu_operator_i),
-      .multdiv_operator_i   (multdiv_operator_i),
-      .operand_a_i          (alu_operand_a_i),
-      .operand_b_i          (alu_operand_b_i),
-      .operand_rd_i         (alu_operand_rd_i),
-      .width8_i             (zpn_width8_i),
-      .width32_i            (zpn_width32_i),
-      .signed_ops_i         (zpn_signed_ops_i),
-      .multdiv_sel_i        (1'b0),
-      .imm_val_i            (zpn_imm_val_i),
-      .imm_instr_i          (zpn_imm_instr_i),
-      .adder_result_o       (alu_adder_result_ex_o),
-      .adder_result_ext_o   (alu_adder_result_ext),
-      .result_o             (alu_result),
-      .valid_o              (multdiv_valid),
-      .set_ov_o             (vxsat_set_o),
-      .comparison_result_o  (alu_cmp_result),
-      .is_equal_result_o    (alu_is_equal_result)
-    );
-
-    // Assign unused signals when using Pext
-    logic[0:0] unused_signals_pext;
-    assign unused_signals_pext = {alu_instr_first_cycle_i};
-
-  end
-
-
-  /////////////////////////
-  // Non-Pext Multiplier //
-  /////////////////////////
-  if (RV32P == RV32PNone) begin : gen_non_pext_mult
     if (RV32M == RV32MSlow) begin : gen_multdiv_slow
       ibex_multdiv_slow multdiv_i (
         .clk_i             (clk_i),
@@ -215,7 +173,9 @@ module ibex_ex_block #(
         .multdiv_ready_id_i(multdiv_ready_id_i),
         .multdiv_result_o  (multdiv_result)
       );
+
     end else if (RV32M == RV32MFast || RV32M == RV32MSingleCycle) begin : gen_multdiv_fast
+
       ibex_multdiv_fast #(
         .RV32M(RV32M)
       ) multdiv_i (
@@ -242,12 +202,55 @@ module ibex_ex_block #(
         .valid_o           (multdiv_valid),
         .multdiv_result_o  (multdiv_result)
       );
+
     end
+  end
+  else begin : gen_pext_alu
+
+    assign result_ex_o = alu_result;
+    
+    ibex_alu_pext alu_pext_i (
+      .clk_i                (clk_i),
+      .rst_ni               (rst_ni),
+      .zpn_operator_i       (zpn_operator_i),
+      .alu_operator_i       (alu_operator_i),
+      .multdiv_operator_i   (multdiv_operator_i),
+      .multdiv_sel_i        (multdiv_sel),
+      .mult_en_i            (mult_en_i),
+      .div_en_i             (div_en_i),
+      .mult_sel_i           (mult_sel_i),
+      .div_sel_i            (div_sel_i),
+      .signed_mode_i        (multdiv_signed_mode_i),
+      .multdiv_ready_id_i   (multdiv_ready_id_i),
+      .data_ind_timing_i    (data_ind_timing_i),
+      .imd_val_q_i          (imd_val_q_i),
+      .imd_val_we_o         (imd_val_we_o),
+      .imd_val_d_o          (imd_val_d_o),
+      .operand_a_i          (alu_operand_a_i),
+      .operand_b_i          (alu_operand_b_i),
+      .operand_rd_i         (alu_operand_rd_i),
+      .imm_val_i            (zpn_imm_val_i),
+      .adder_result_o       (alu_adder_result_ex_o),
+      .result_o             (alu_result),
+      .valid_o              (multdiv_valid),
+      .set_ov_o             (vxsat_set_o),
+      .comparison_result_o  (alu_cmp_result)
+    );
+
+    // Assign unused signals when using Pext
+    logic[0:0] unused_signals_pext;
+    assign unused_signals_pext = {alu_instr_first_cycle_i};
+    
+    // The multdiv operands are not used in Pext-mode
+    logic[63:0] unused_operands;
+    assign unused_operands = {multdiv_operand_a_i, multdiv_operand_b_i};
+
+
   end
 
   // Multiplier/divider may require multiple cycles. The ALU output is valid in the same cycle
   // unless the intermediate result register is being written (which indicates this isn't the
   // final cycle of ALU operation).
-  assign ex_valid_o = multdiv_sel ? multdiv_valid : ~(|alu_imd_val_we);
+  assign ex_valid_o = multdiv_sel ? multdiv_valid : ~(|imd_val_we_o);
 
 endmodule
