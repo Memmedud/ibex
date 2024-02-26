@@ -142,8 +142,8 @@ module ibex_ex_block #(
       .multdiv_operand_a_i(multdiv_alu_operand_a),
       .multdiv_operand_b_i(multdiv_alu_operand_b),
       .multdiv_sel_i      (multdiv_sel),
-      .adder_result_o     (adder_result),
-      .adder_result_ext_o (adder_result_ext),
+      .adder_result_o     (alu_adder_result_ex_o),
+      .adder_result_ext_o (alu_adder_result_ext),
       .result_o           (alu_result),
       .comparison_result_o(alu_cmp_result),
       .is_equal_result_o  (alu_is_equal_result)
@@ -160,17 +160,19 @@ module ibex_ex_block #(
       .zpn_operator_i       (zpn_operator_i),
       .zpn_instr_i          (zpn_instr_i),
       .alu_operator_i       (alu_operator_i),
+      .multdiv_operator_i   (multdiv_operator_i),
       .operand_a_i          (alu_operand_a_i),
       .operand_b_i          (alu_operand_b_i),
       .operand_rd_i         (alu_operand_rd_i),
       .width8_i             (zpn_width8_i),
       .width32_i            (zpn_width32_i),
       .signed_ops_i         (zpn_signed_ops_i),
+      .multdiv_sel_i        (1'b0),
       .imm_val_i            (zpn_imm_val_i),
       .imm_instr_i          (zpn_imm_instr_i),
-      .adder_result_o       (adder_result),
-      .adder_result_ext_o   (adder_result_ext),
-      .result_o             (pext_result),
+      .adder_result_o       (alu_adder_result_ex_o),
+      .adder_result_ext_o   (alu_adder_result_ext),
+      .result_o             (alu_result),
       .valid_o              (multdiv_valid),
       .set_ov_o             (vxsat_set_o),
       .comparison_result_o  (alu_cmp_result),
@@ -179,7 +181,7 @@ module ibex_ex_block #(
 
     // Assign unused signals when using Pext
     logic[0:0] unused_signals_pext;
-    assign unused_signals_pext = {instr_first_cycle_i};
+    assign unused_signals_pext = {alu_instr_first_cycle_i};
 
   end
 

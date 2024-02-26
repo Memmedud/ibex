@@ -12,6 +12,7 @@ module ibex_mult_pext (
   input  logic                      rst_ni,
 
   input  logic                      mult_en_i,
+  //input  logic                      multdiv_sel_i,
 
   input  ibex_pkg_pext::zpn_op_e    operator_i,
 

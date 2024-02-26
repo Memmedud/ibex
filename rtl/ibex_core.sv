@@ -751,13 +751,13 @@ module ibex_core import ibex_pkg::*; #(
 
     // Pext signals
     .zpn_operator_i       (zpn_operator_ex),
+    .zpn_instr_i          (zpn_enable),
     .zpn_width32_i        (zpn_width32),
     .zpn_width8_i         (zpn_width8),
     .zpn_signed_ops_i     (zpn_signed_ops),
     .zpn_imm_val_i        (zpn_imm_val),
     .zpn_imm_instr_i      (zpn_imm_instr),
     .vxsat_set_o          (vxsat_set),
-    .zpn_enable_i         (zpn_enable),
 
     // Intermediate value register
     .imd_val_we_o(imd_val_we_ex),

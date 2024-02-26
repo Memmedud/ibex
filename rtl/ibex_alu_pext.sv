@@ -325,7 +325,7 @@ module ibex_alu_pext #(
     .rst_ni         (rst_ni),
     .mult_en_i      (1'b1),
     .operator_i     (zpn_operator_i),
-    .multdiv_sel_i  (multdiv_sel_i),
+    //.mult_en_i      (multdiv_sel_i),
     .op_a_i         (operand_a_i),
     .op_b_i         (operand_b_i),
     .rd_val_i       (operand_rd_i),
@@ -358,7 +358,7 @@ module ibex_alu_pext #(
       default: is_equal = {{2{&is_byte_equal[3:2]}}, {2{&is_byte_equal[1:0]}}};
     endcase
 
-    is_equal_result_o = ~zpn_instr_i & is_equal;
+    is_equal_result_o = ~zpn_instr_i & is_equal[0];
   end
 
   // Calculate is_less
@@ -405,12 +405,15 @@ module ibex_alu_pext #(
 
     unique case (alu_operator_i)
       ALU_EQ: comp_result_packed =  is_equal;
+
       ALU_NE: comp_result_packed = ~is_equal;
+
       ALU_GE,   ALU_GEU,
-      ALU_MAX,  ALU_MAXU: cmp_result = ~is_less;
+      ALU_MAX,  ALU_MAXU: comp_result_packed = ~is_less;
+      
       ALU_LT,   ALU_LTU,
       ALU_MIN,  ALU_MINU,
-      ALU_SLT,  ALU_SLTU: cmp_result = is_less;  // TODO: Fix this   
+      ALU_SLT,  ALU_SLTU: comp_result_packed = is_less;  // TODO: Fix this   
       
       default: ;
     endcase
@@ -481,7 +484,7 @@ module ibex_alu_pext #(
   end
 
   // Clipping instructions require all ones on shifter
-  logic[31:0] shift_operand;
+  logic[31:0] shift_operand_tmp;
   logic       shift_signed;
   always_comb begin
     unique case (zpn_operator_i)
@@ -492,8 +495,8 @@ module ibex_alu_pext #(
       end
 
       default: begin
-        shift_operand = operand_a_i;
-        shift_signed  = signed_ops_i;
+        shift_operand_tmp = operand_a_i;
+        shift_signed      = signed_ops_i;
       end
     endcase
   end
@@ -501,20 +504,27 @@ module ibex_alu_pext #(
   // bit-reverse operand_a for left shifts
   logic[31:0] shift_operand_rev;
   for (genvar i = 0; i < 32; i++) begin : gen_rev_operand
-    assign shift_operand_rev[i] = shift_operand[31-i];
+    assign shift_operand_rev[i] = shift_operand_tmp[31-i];
   end
 
   // Prepare operands   // TODO: Support rounding as well pipe back into adder to add one 
   logic[31:0] shift_operand;
   logic[4:0]  shift_amt_raw, shift_amt;
 
-  assign shift_operand = shift_left  ? shift_operand_rev : shift_operand;
+  assign shift_operand = shift_left  ? shift_operand_rev : shift_operand_tmp;
   assign shift_amt_raw = imm_instr_i ? imm_val_i : operand_b_i[4:0];
   assign shift_amt     = {(width32_i ? shift_amt_raw[4] : 1'b0), (width8_i ? 1'b0 : shift_amt_raw[3]), shift_amt_raw[2:0]};
 
   // Actual shifter
-  logic[32:0] shifter_result;
-  assign shifter_result = $signed({signed_ops_i & shift_operand[31], shift_operand}) >>> shift_amt;
+  logic[32:0] shift_result_raw;
+  logic       unused_shift_result;
+
+  assign shift_result_raw = $signed({signed_ops_i & shift_operand[31], shift_operand}) >>> shift_amt;
+  assign unused_shift_result = shift_result_raw[32];
+
+  logic[31:0] shift_result_full;
+  assign shift_result_full = shift_result_raw[31:0];
+
 
   // Apply mask 
 
@@ -812,172 +822,167 @@ module ibex_alu_pext #(
   ////////////////////
   logic[31:0] zpn_result;
   always_comb begin
-    zpn_result   = '0;
+    unique case (zpn_operator_i)
+      // Adder operation
+      // Misc   // TODO: Add rounding ops here
+      ZPN_AVE,
+      // Add ops
+      ZPN_KADDW,    ZPN_KADDH,
+      ZPN_UKADDW,   ZPN_UKADDH,
+      ZPN_RADDW,    ZPN_URADDW,
+      ZPN_RADD16,   ZPN_RADD8,
+      ZPN_KADD16,   ZPN_KADD8,
+      ZPN_URADD16,  ZPN_URADD8,
+      ZPN_UKADD16,  ZPN_UKADD8,
+      ZPN_ADD16,    ZPN_ADD8,
+      // Sub ops
+      ZPN_KSUBW,    ZPN_KSUBH,
+      ZPN_UKSUBW,   ZPN_UKSUBH,
+      ZPN_RSUBW,    ZPN_URSUBW,
+      ZPN_RSUB16,   ZPN_RSUB8,
+      ZPN_KSUB16,   ZPN_KSUB8,
+      ZPN_URSUB16,  ZPN_URSUB8,
+      ZPN_UKSUB16,  ZPN_UKSUB8,
+      ZPN_SUB16,    ZPN_SUB8,
+      // Cross Add/Sub ops
+      ZPN_RCRAS16,  ZPN_RCRSA16,
+      ZPN_KCRAS16,  ZPN_KCRSA16,
+      ZPN_URCRAS16, ZPN_URCRSA16,
+      ZPN_UKCRAS16, ZPN_UKCRSA16,
+      ZPN_CRAS16,   ZPN_CRSA16,
+      // Straight Add/Sub ops
+      ZPN_RSTAS16,  ZPN_RSTSA16,
+      ZPN_KSTAS16,  ZPN_KSTSA16,
+      ZPN_URSTAS16, ZPN_URSTSA16,
+      ZPN_UKSTAS16, ZPN_UKSTSA16,
+      ZPN_STAS16,   ZPN_STSA16: zpn_result = adder_result;
+      
+      // SIMD multiplication ops
+      // 8x8       32x32         32x16          16x16      
+      ZPN_SMAQA,   ZPN_SMMUL,    ZPN_SMMWB,     ZPN_SMBB16,
+      ZPN_UMAQA,   ZPN_SMMULu,   ZPN_SMMWBu,    ZPN_SMBT16,
+      ZPN_SMAQAsu, ZPN_KMMAC,    ZPN_SMMWT,     ZPN_SMTT16,
+      ZPN_KHM8,    ZPN_KMMACu,   ZPN_SMMWTu,    ZPN_KMDA,  
+      ZPN_KHMX8,   ZPN_KMMSB,    ZPN_KMMAWB,    ZPN_KMXDA, 
+                    ZPN_KMMSBu,   ZPN_KMMAWBu,   ZPN_SMDS,
+                    ZPN_KWMMUL,   ZPN_KMMAWT,    ZPN_SMDRS,
+                    ZPN_KWMMULu,  ZPN_KMMAWTu,   ZPN_SMXDS,
+                    ZPN_MADDR32,  ZPN_KMMWB2,    ZPN_KMABB,
+                    ZPN_MSUBR32,  ZPN_KMMWB2u,   ZPN_KMABT,
+                                  ZPN_KMMWT2,    ZPN_KMATT,
+                                  ZPN_KMMWT2u,   ZPN_KMADA,
+                                  ZPN_KMMAWB2,   ZPN_KMAXDA,
+                                  ZPN_KMMAWB2u,  ZPN_KMADS,
+                                  ZPN_KMMAWT2,   ZPN_KMADRS,
+                                  ZPN_KMMAWT2u,  ZPN_KMAXDS,
+                                                ZPN_KMSDA,
+                                                ZPN_KMSXDA,
+                                                ZPN_KHMBB,
+                                                ZPN_KHMBT,
+                                                ZPN_KHMTT,
+                                                ZPN_KDMBB,
+                                                ZPN_KDMBT,
+                                                ZPN_KDMTT,
+                                                ZPN_KDMABB,
+                                                ZPN_KDMABT,
+                                                ZPN_KDMATT,
+                                                ZPN_KHM16,
+                                                ZPN_KHMX16: zpn_result = mult_result;
 
-    if (enable_i) begin
-      unique case (zpn_operator_i)
-        // Adder operation
-        // Misc   // TODO: Add rounding ops here
-        ZPN_AVE,
-        // Add ops
-        ZPN_KADDW,    ZPN_KADDH,
-        ZPN_UKADDW,   ZPN_UKADDH,
-        ZPN_RADDW,    ZPN_URADDW,
-        ZPN_RADD16,   ZPN_RADD8,
-        ZPN_KADD16,   ZPN_KADD8,
-        ZPN_URADD16,  ZPN_URADD8,
-        ZPN_UKADD16,  ZPN_UKADD8,
-        ZPN_ADD16,    ZPN_ADD8,
-        // Sub ops
-        ZPN_KSUBW,    ZPN_KSUBH,
-        ZPN_UKSUBW,   ZPN_UKSUBH,
-        ZPN_RSUBW,    ZPN_URSUBW,
-        ZPN_RSUB16,   ZPN_RSUB8,
-        ZPN_KSUB16,   ZPN_KSUB8,
-        ZPN_URSUB16,  ZPN_URSUB8,
-        ZPN_UKSUB16,  ZPN_UKSUB8,
-        ZPN_SUB16,    ZPN_SUB8,
-        // Cross Add/Sub ops
-        ZPN_RCRAS16,  ZPN_RCRSA16,
-        ZPN_KCRAS16,  ZPN_KCRSA16,
-        ZPN_URCRAS16, ZPN_URCRSA16,
-        ZPN_UKCRAS16, ZPN_UKCRSA16,
-        ZPN_CRAS16,   ZPN_CRSA16,
-        // Straight Add/Sub ops
-        ZPN_RSTAS16,  ZPN_RSTSA16,
-        ZPN_KSTAS16,  ZPN_KSTSA16,
-        ZPN_URSTAS16, ZPN_URSTSA16,
-        ZPN_UKSTAS16, ZPN_UKSTSA16,
-        ZPN_STAS16,   ZPN_STSA16: zpn_result = adder_result;
-        
-        // SIMD multiplication ops
-        // 8x8       32x32         32x16          16x16      
-        ZPN_SMAQA,   ZPN_SMMUL,    ZPN_SMMWB,     ZPN_SMBB16,
-        ZPN_UMAQA,   ZPN_SMMULu,   ZPN_SMMWBu,    ZPN_SMBT16,
-        ZPN_SMAQAsu, ZPN_KMMAC,    ZPN_SMMWT,     ZPN_SMTT16,
-        ZPN_KHM8,    ZPN_KMMACu,   ZPN_SMMWTu,    ZPN_KMDA,  
-        ZPN_KHMX8,   ZPN_KMMSB,    ZPN_KMMAWB,    ZPN_KMXDA, 
-                     ZPN_KMMSBu,   ZPN_KMMAWBu,   ZPN_SMDS,
-                     ZPN_KWMMUL,   ZPN_KMMAWT,    ZPN_SMDRS,
-                     ZPN_KWMMULu,  ZPN_KMMAWTu,   ZPN_SMXDS,
-                     ZPN_MADDR32,  ZPN_KMMWB2,    ZPN_KMABB,
-                     ZPN_MSUBR32,  ZPN_KMMWB2u,   ZPN_KMABT,
-                                   ZPN_KMMWT2,    ZPN_KMATT,
-                                   ZPN_KMMWT2u,   ZPN_KMADA,
-                                   ZPN_KMMAWB2,   ZPN_KMAXDA,
-                                   ZPN_KMMAWB2u,  ZPN_KMADS,
-                                   ZPN_KMMAWT2,   ZPN_KMADRS,
-                                   ZPN_KMMAWT2u,  ZPN_KMAXDS,
-                                                  ZPN_KMSDA,
-                                                  ZPN_KMSXDA,
-                                                  ZPN_KHMBB,
-                                                  ZPN_KHMBT,
-                                                  ZPN_KHMTT,
-                                                  ZPN_KDMBB,
-                                                  ZPN_KDMBT,
-                                                  ZPN_KDMTT,
-                                                  ZPN_KDMABB,
-                                                  ZPN_KDMABT,
-                                                  ZPN_KDMATT,
-                                                  ZPN_KHM16,
-                                                  ZPN_KHMX16: zpn_result = mult_result;
+      // Comparison ops
+      ZPN_CMPEQ16,  ZPN_CMPEQ8,
+      ZPN_SCMPLT16, ZPN_SCMPLT8,
+      ZPN_SCMPLE16, ZPN_SCMPLE8,
+      ZPN_UCMPLT16, ZPN_UCMPLT8,
+      ZPN_UCMPLE16, ZPN_UCMPLE8: zpn_result = comp_result;
 
-        // Comparison ops
-        ZPN_CMPEQ16,  ZPN_CMPEQ8,
-        ZPN_SCMPLT16, ZPN_SCMPLT8,
-        ZPN_SCMPLE16, ZPN_SCMPLE8,
-        ZPN_UCMPLT16, ZPN_UCMPLT8,
-        ZPN_UCMPLE16, ZPN_UCMPLE8: zpn_result = comp_result;
+      // Min/Max ops
+      ZPN_SMIN16, ZPN_SMIN8,
+      ZPN_SMAX16, ZPN_SMAX8,
+      ZPN_UMIN16, ZPN_UMIN8,
+      ZPN_UMAX16, ZPN_UMAX8: zpn_result = minmax_result;
 
-        // Min/Max ops
-        ZPN_SMIN16, ZPN_SMIN8,
-        ZPN_SMAX16, ZPN_SMAX8,
-        ZPN_UMIN16, ZPN_UMIN8,
-        ZPN_UMAX16, ZPN_UMAX8: zpn_result = minmax_result;
+      // Abs ops
+      ZPN_KABS16, ZPN_KABS8,
+      ZPN_KABSW: zpn_result = abs_result;
 
-        // Abs ops
-        ZPN_KABS16, ZPN_KABS8,
-        ZPN_KABSW: zpn_result = abs_result;
+      // Clip ops
+      ZPN_SCLIP32, ZPN_SCLIP16,
+      ZPN_UCLIP32, ZPN_SCLIP8: zpn_result = clip_result;
 
-        // Clip ops
-        ZPN_SCLIP32, ZPN_SCLIP16,
-        ZPN_UCLIP32, ZPN_SCLIP8: zpn_result = clip_result;
+      // Shift ops      // Omitting rounding shifts for now   // KSLRA8.u KSLRA16.u
+      ZPN_SRA16,    ZPN_SRA8,
+      ZPN_SRAI16,   ZPN_SRAI8,
+      ZPN_SRL16,    ZPN_SRL8,
+      ZPN_SRLI16,   ZPN_SRLI8,
+      ZPN_SLL16,    ZPN_SLL8,
+      ZPN_SLLI16,   ZPN_SLLI8,
+      ZPN_KSLL16,   ZPN_KSLL8,      // TODO ========================================
+      ZPN_KSLLI16,  ZPN_KSLLI8,
+      ZPN_KSLRA16,  ZPN_KSLRA8: zpn_result = shift_result;
+      
+      // Bit-count ops
+      ZPN_CLRS16, ZPN_CLRS8, ZPN_CLRS32,
+      ZPN_CLZ16,  ZPN_CLZ8: zpn_result = bit_cnt_result;
 
-        // Shift ops      // Omitting rounding shifts for now   // KSLRA8.u KSLRA16.u
-        ZPN_SRA16,    ZPN_SRA8,
-        ZPN_SRAI16,   ZPN_SRAI8,
-        ZPN_SRL16,    ZPN_SRL8,
-        ZPN_SRLI16,   ZPN_SRLI8,
-        ZPN_SLL16,    ZPN_SLL8,
-        ZPN_SLLI16,   ZPN_SLLI8,
-        ZPN_KSLL16,   ZPN_KSLL8,      // TODO ========================================
-        ZPN_KSLLI16,  ZPN_KSLLI8,
-        ZPN_KSLRA16,  ZPN_KSLRA8: zpn_result = shift_result;
-        
-        // Bit-count ops
-        ZPN_CLRS16, ZPN_CLRS8, ZPN_CLRS32,
-        ZPN_CLZ16,  ZPN_CLZ8: zpn_result = bit_cnt_result;
+      // Unpack ops
+      ZPN_SUNPKD810, ZPN_ZUNPKD810,
+      ZPN_SUNPKD820, ZPN_ZUNPKD820,
+      ZPN_SUNPKD830, ZPN_ZUNPKD830,
+      ZPN_SUNPKD831, ZPN_ZUNPKD831,
+      ZPN_SUNPKD832, ZPN_ZUNPKD832: zpn_result = unpack_result;
 
-        // Unpack ops
-        ZPN_SUNPKD810, ZPN_ZUNPKD810,
-        ZPN_SUNPKD820, ZPN_ZUNPKD820,
-        ZPN_SUNPKD830, ZPN_ZUNPKD830,
-        ZPN_SUNPKD831, ZPN_ZUNPKD831,
-        ZPN_SUNPKD832, ZPN_ZUNPKD832: zpn_result = unpack_result;
+      // Packing ops
+      ZPN_PKBB16, ZPN_PKBT16,
+      ZPN_PKTB16, ZPN_PKTT16: zpn_result = packing_result;
 
-        // Packing ops
-        ZPN_PKBB16, ZPN_PKBT16,
-        ZPN_PKTB16, ZPN_PKTT16: zpn_result = packing_result;
+      // Insert Byte ops
+      ZPN_INSB0, ZPN_INSB1,
+      ZPN_INSB2, ZPN_INSB3: zpn_result = insb_result;
 
-        // INSB ops
-        ZPN_INSB0, ZPN_INSB1,
-        ZPN_INSB2, ZPN_INSB3: zpn_result = insb_result;
-
-        default: ;
-      endcase
-    end
+      default: zpn_result = '0;
+    endcase
   end
 
 
   //////////////////////
   // Final Result mux //
   //////////////////////
-  logic[31:0] alu_result;
   always_comb begin
     unique case(alu_operator_i)
-      // Bitwise Logic Operations
+      // Bitwise Logic ops
       ALU_XOR,  ALU_OR,
       ALU_AND: result_o = bw_result;
 
-      // Adder Operations
+      // Adder ops
       ALU_ADD,  ALU_SUB: result_o = adder_result;
 
-      // Shift Operations
+      // Shift ops
       ALU_SLL,  ALU_SRL,
       ALU_SRA: result_o = shift_result;
 
-      // Comparison Operations
+      // Comparison ops
       ALU_EQ,   ALU_NE,
       ALU_GE,   ALU_GEU,
       ALU_LT,   ALU_LTU,
-      ALU_SLT,  ALU_SLTU: result_o = {31'h0, comp_result[0]};
+      ALU_SLT,  ALU_SLTU: result_o = {31'h0, comp_result[0]};v
 
-      // MinMax Operations (Zbpbo)
+      // MinMax ops (Zbpbo)
       ALU_MIN,  ALU_MAX,
       ALU_MINU, ALU_MAXU: result_o = minmax_result;
 
-      // Bitcount Operations (Zbpbo)
-      ALU_CLZ: result_o = bitcnt_result;
+      // Bitcount ops (Zbpbo)
+      ALU_CLZ: result_o = bit_cnt_result;
 
-      // Pack Operations (Zbpbo)
-      ALU_PACK, ALU_PACKU: result_o = pack_result;
+      // Pack ops (Zbpbo)
+      ALU_PACK, ALU_PACKU: result_o = packing_result;
 
       // TODO: Add the rest from Zbpbo
       
       // P-ext ALU output
       ZPN_INSTR:  result_o = zpn_result;
 
-      default: ;
+      default: result_o = '0;
     endcase
   end
 
