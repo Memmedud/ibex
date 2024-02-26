@@ -45,7 +45,7 @@ module ibex_alu_pext #(
   output logic [31:0]                   adder_result_o,
 
   output logic [31:0]                   result_o,
-  output logic                          valid_o,        // All ALU ops are single cycle, only used for Mults
+  output logic                          valid_o,            // All ALU ops are single cycle, only used for Mults
   output logic                          set_ov_o,
   output logic                          comparison_result_o
 );
@@ -87,7 +87,7 @@ module ibex_alu_pext #(
       ZPN_KCRAS16,  ZPN_KCRSA16,
       ZPN_URCRAS16, ZPN_URCRSA16, 
       ZPN_UKCRAS16, ZPN_UKCRSA16,
-      ZPN_CRAS16,   ZPN_CRSA16: crossed = 1'b1;
+      ZPN_CRAS16,   ZPN_CRSA16: crossed = zpn_instr;
 
       default: crossed = 1'b0;
     endcase
@@ -98,7 +98,7 @@ module ibex_alu_pext #(
   always_comb begin
     unique case(zpn_operator_i)
       ZPN_KADDH, ZPN_UKADDH,
-      ZPN_KSUBH, ZPN_UKSUBH: halved = 1'b1;
+      ZPN_KSUBH, ZPN_UKSUBH: halved = zpn_instr;
 
       default: halved = 1'b0;
     endcase
@@ -109,7 +109,7 @@ module ibex_alu_pext #(
   always_comb begin
     unique case(zpn_operator_i)
       ZPN_KABS16, ZPN_KABS8,
-      ZPN_KABSW: oneop = 1'b1;
+      ZPN_KABSW: oneop = zpn_instr;
 
       default: oneop = 1'b0;
     endcase
@@ -121,20 +121,21 @@ module ibex_alu_pext #(
     unique case (zpn_operator_i)
       ZPN_AVE/*,
       ZPN_SCLIP16,  ZPN_SCLIP8,
-      ZPN_SCLIP32,  ZPN_UCLIP32*/: rounding = 1'b1;
+      ZPN_SCLIP32,  ZPN_UCLIP32*/: rounding = zpn_instr;
 
       default: rounding = 1'b0;
     endcase
   end
 
   // Prepare operands
-  logic       sub8, sub32;
+  logic       sub8, sub16, sub32;
   logic[7:0]  adder_in_a0, adder_in_a1, adder_in_a2, adder_in_a3,
               adder_tmp_b0, adder_tmp_b1, adder_tmp_b2, adder_tmp_b3,
               adder_in_b0, adder_in_b1, adder_in_b2, adder_in_b3;
 
-  assign sub8  =  width8  & sub[0];   // For 8-bit we assume no combined add/sub
-  assign sub32 = ~width32 & sub[0];   // For 32-bit we assume add/sub cannot occur
+  assign sub8  = sub[0] &  width8;   // For 8-bit we assume no combined add/sub
+  assign sub16 = sub[1] & ~width32;   // For 32-bit we assume add/sub cannot occur
+  assign sub32 = sub[0];
 
   assign adder_in_a0 = operand_a_i[7:0]   & {8{~oneop}};
   assign adder_in_a1 = operand_a_i[15:8]  & {8{~oneop}};
@@ -155,10 +156,10 @@ module ibex_alu_pext #(
   logic[8:0]  adder_result0, adder_result1, adder_result2, adder_result3;
   logic       carry_out0, carry_out1, carry_out2;
 
-  assign adder_result0 = adder_in_a0 + adder_in_b0 + {7'b000_0000, (sub[0] | rounding)};
-  assign adder_result1 = adder_in_a1 + adder_in_b1 + {7'b000_0000, sub8}  + {7'b000_0000, carry_out0};
-  assign adder_result2 = adder_in_a2 + adder_in_b2 + {7'b000_0000, sub32} + {7'b000_0000, carry_out1};
-  assign adder_result3 = adder_in_a3 + adder_in_b3 + {7'b000_0000, sub8}  + {7'b000_0000, carry_out2};
+  assign adder_result0 = adder_in_a0 + adder_in_b0 + {7'b000_0000, (sub32 | rounding)};
+  assign adder_result1 = adder_in_a1 + adder_in_b1 + {7'b000_0000,  sub8}  + {7'b000_0000, carry_out0};
+  assign adder_result2 = adder_in_a2 + adder_in_b2 + {7'b000_0000,  sub16} + {7'b000_0000, carry_out1};
+  assign adder_result3 = adder_in_a3 + adder_in_b3 + {7'b000_0000,  sub8}  + {7'b000_0000, carry_out2};
 
   assign carry_out0 = ~width8  & adder_result0[8];
   assign carry_out1 =  width32 & adder_result1[8];
@@ -196,9 +197,9 @@ module ibex_alu_pext #(
   end
 
   // Decode saturation state
-  logic[3:0]  saturated;
+  logic[3:0]  saturated;      // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
   logic       alu_set_ov;
-  assign alu_set_ov = |saturated; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
+  assign alu_set_ov = |saturated;   
   assign saturated = { ((adder_in_a3[7] ^ adder_tmp_b3[7]) ^ ~sub[1]) & (^adder_result3[8:7]), 
                        ((adder_in_a2[7] ^ adder_tmp_b2[7]) ^ ~sub[1]) & (^adder_result2[8:7]), 
                        ((adder_in_a1[7] ^ adder_tmp_b1[7]) ^ ~sub[0]) & (^adder_result1[8:7]), 
@@ -240,34 +241,40 @@ module ibex_alu_pext #(
   logic[31:0] adder_result;
   logic[33:0] adder_result_ext;
   always_comb begin
-    unique case(zpn_operator_i)   
-      ZPN_AVE,    // TODO add rounding ops to halving...
-      ZPN_RADDW,    ZPN_URADDW,
-      ZPN_RSUBW,    ZPN_URSUBW,
-      ZPN_URCRAS16, ZPN_URCRSA16,
-      ZPN_RCRAS16,  ZPN_RCRSA16,
-      ZPN_URSTAS16, ZPN_URSTSA16,
-      ZPN_RSTAS16,  ZPN_RSTSA16,
-      ZPN_URADD16,  ZPN_URADD8,
-      ZPN_RADD16,   ZPN_RADD8,
-      ZPN_URSUB16,  ZPN_URSUB8,
-      ZPN_RSUB16,   ZPN_RSUB8: adder_result = halving_result;
+    unique case(alu_operator_i)
+      ZPN_INSTR: begin
+        unique case(zpn_operator_i)   
+          ZPN_AVE,    // TODO add rounding ops to halving...
+          ZPN_RADDW,    ZPN_URADDW,
+          ZPN_RSUBW,    ZPN_URSUBW,
+          ZPN_URCRAS16, ZPN_URCRSA16,
+          ZPN_RCRAS16,  ZPN_RCRSA16,
+          ZPN_URSTAS16, ZPN_URSTSA16,
+          ZPN_RSTAS16,  ZPN_RSTSA16,
+          ZPN_URADD16,  ZPN_URADD8,
+          ZPN_RADD16,   ZPN_RADD8,
+          ZPN_URSUB16,  ZPN_URSUB8,
+          ZPN_RSUB16,   ZPN_RSUB8: adder_result = halving_result;
 
-      ZPN_KADDW,    ZPN_UKADDW,   // TODO: Add Saturating shifts here
-      ZPN_KADDH,    ZPN_UKADDH,
-      ZPN_KSUBW,    ZPN_UKSUBW,
-      ZPN_KSUBH,    ZPN_UKSUBH,
-      ZPN_UKCRAS16, ZPN_UKCRSA16,
-      ZPN_KCRAS16,  ZPN_KCRSA16,
-      ZPN_UKSTAS16, ZPN_UKSTSA16,
-      ZPN_KSTAS16,  ZPN_KSTSA16,
-      ZPN_UKADD16,  ZPN_UKADD8,
-      ZPN_KADD16,   ZPN_KADD8,
-      ZPN_UKSUB16,  ZPN_UKSUB8,
-      ZPN_KSUB16,   ZPN_KSUB8: adder_result = saturating_result;
+          ZPN_KADDW,    ZPN_UKADDW,   // TODO: Add Saturating shifts here
+          ZPN_KADDH,    ZPN_UKADDH,
+          ZPN_KSUBW,    ZPN_UKSUBW,
+          ZPN_KSUBH,    ZPN_UKSUBH,
+          ZPN_UKCRAS16, ZPN_UKCRSA16,
+          ZPN_KCRAS16,  ZPN_KCRSA16,
+          ZPN_UKSTAS16, ZPN_UKSTSA16,
+          ZPN_KSTAS16,  ZPN_KSTSA16,
+          ZPN_UKADD16,  ZPN_UKADD8,
+          ZPN_KADD16,   ZPN_KADD8,
+          ZPN_UKSUB16,  ZPN_UKSUB8,
+          ZPN_KSUB16,   ZPN_KSUB8: adder_result = saturating_result;
+
+          default: adder_result = normal_result;
+        endcase 
+      end
 
       default: adder_result = normal_result;
-    endcase 
+    endcase
 
     adder_result_ext = {adder_result3[8], normal_result, 1'b1};
     adder_result_o   = normal_result;
@@ -400,7 +407,7 @@ module ibex_alu_pext #(
                          {8{comp_result_packed[1]}},
                          {8{comp_result_packed[0]}} };
 
-  assign comparison_result_o = ~zpn_instr & comp_result_packed[3];
+  assign comparison_result_o = ~zpn_instr & comp_result_packed[0];
 
 
   /////////////
@@ -447,11 +454,19 @@ module ibex_alu_pext #(
   // Decode if we should left-shift (right shifting by default)
   logic shift_left;
   always_comb begin
-    unique case (zpn_operator_i)
-      ZPN_SLL16,    ZPN_SLL8,
-      ZPN_SLLI16,   ZPN_SLLI8,
-      ZPN_SCLIP16,  ZPN_SCLIP8,
-      ZPN_SCLIP32,  ZPN_UCLIP32: shift_left = 1'b1;
+    unique case (alu_operator_i)
+      ZPN_INSTR: begin
+        unique case (zpn_operator_i)
+          ZPN_SLL16,    ZPN_SLL8,
+          ZPN_SLLI16,   ZPN_SLLI8,
+          ZPN_SCLIP16,  ZPN_SCLIP8,
+          ZPN_SCLIP32,  ZPN_UCLIP32: shift_left = 1'b1;
+
+          default: shift_left = 1'b0;
+        endcase
+      end
+
+      ALU_SLL: shift_left = 1'b1;
 
       default: shift_left = 1'b0;
     endcase
