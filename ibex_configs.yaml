@@ -33,8 +33,8 @@ small:
   PMPEnable                : 0
   PMPGranularity           : 0
   PMPNumRegions            : 4
-  MHPMCounterNum           : 0
-  MHPMCounterWidth         : 40
+  MHPMCounterNum           : 16
+  MHPMCounterWidth         : 32
 
 small-rv32e:
   RV32E                    : 1
@@ -53,8 +53,8 @@ small-rv32e:
   PMPEnable                : 0
   PMPGranularity           : 0
   PMPNumRegions            : 4
-  MHPMCounterNum           : 0
-  MHPMCounterWidth         : 40
+  MHPMCounterNum           : 16
+  MHPMCounterWidth         : 32
 
 experimental-pext-small:
   RV32E                    : 0
@@ -73,8 +73,8 @@ experimental-pext-small:
   PMPEnable                : 0
   PMPGranularity           : 0
   PMPNumRegions            : 4
-  MHPMCounterNum           : 0
-  MHPMCounterWidth         : 40
+  MHPMCounterNum           : 16
+  MHPMCounterWidth         : 32
 
 experimental-pext-small-rv32e:
   RV32E                    : 1
@@ -93,8 +93,8 @@ experimental-pext-small-rv32e:
   PMPEnable                : 0
   PMPGranularity           : 0
   PMPNumRegions            : 4
-  MHPMCounterNum           : 0
-  MHPMCounterWidth         : 40
+  MHPMCounterNum           : 16
+  MHPMCounterWidth         : 32
 
 # TODO: add p-ext to other configurations as well 
 # Configuration to match that used in the OpenTitan project

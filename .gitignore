@@ -24,3 +24,4 @@ modelsim.ini
 *syn_out
 *.log
 *.map
+*.fst

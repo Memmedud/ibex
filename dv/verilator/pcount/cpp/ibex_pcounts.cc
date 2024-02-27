@@ -58,7 +58,7 @@ std::string ibex_pcount_string(bool csv) {
   if (!csv) {
     longest_name_length = 0;
     for (int i = 0; i < ibex_counter_names.size(); ++i) {
-      if (has_hpm_counter(i)) {
+      if (1/*has_hpm_counter(i)*/) {
         longest_name_length =
             std::max(longest_name_length, ibex_counter_names[i].length());
       }
@@ -71,7 +71,7 @@ std::string ibex_pcount_string(bool csv) {
   std::stringstream pcount_ss;
 
   for (int i = 0; i < ibex_counter_names.size(); ++i) {
-    if (!has_hpm_counter(i))
+    if (0/*!has_hpm_counter(i)*/)
       continue;
 
     pcount_ss << ibex_counter_names[i] << separator;
