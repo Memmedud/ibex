@@ -56,6 +56,16 @@ module ibex_alu_pext #(
   logic unused_mult_div_sel;
   assign unused_mult_div_sel = multdiv_sel_i;
 
+  // Common signals and logic
+  logic[32:0] multdiv_operand_a, multdiv_operand_b;
+  logic[31:0] adder_operand_a, adder_operand_b;
+
+  assign adder_operand_a = multdiv_sel_i ? multdiv_operand_a[31:0] : operand_a_i; 
+  assign adder_operand_b = multdiv_sel_i ? multdiv_operand_b[31:0] : operand_b_i; 
+
+  // TODO
+  logic[1:0] unused_operand;
+  assign unused_operand = {multdiv_operand_a[32], multdiv_operand_b[32]};
 
   ////////////////////
   // Decoder helper //
@@ -137,20 +147,20 @@ module ibex_alu_pext #(
   assign sub16 = sub[1] & ~width32;   // For 32-bit we assume add/sub cannot occur
   assign sub32 = sub[0];
 
-  assign adder_in_a0 = operand_a_i[7:0]   & {8{~oneop}};
-  assign adder_in_a1 = operand_a_i[15:8]  & {8{~oneop}};
-  assign adder_in_a2 = operand_a_i[23:16] & {8{~halved}} & {8{~oneop}};
-  assign adder_in_a3 = operand_a_i[31:24] & {8{~halved}} & {8{~oneop}};
+  assign adder_in_a0 = adder_operand_a[7:0]   & {8{~oneop}};
+  assign adder_in_a1 = adder_operand_a[15:8]  & {8{~oneop}};
+  assign adder_in_a2 = adder_operand_a[23:16] & {8{~oneop | ~halved}};
+  assign adder_in_a3 = adder_operand_a[31:24] & {8{~oneop | ~halved}};
 
-  assign adder_tmp_b0 = crossed ? operand_b_i[23:16] : operand_b_i[7:0];
-  assign adder_tmp_b1 = crossed ? operand_b_i[31:24] : operand_b_i[15:8];
-  assign adder_tmp_b2 = crossed ? operand_b_i[7:0]   : operand_b_i[23:16];
-  assign adder_tmp_b3 = crossed ? operand_b_i[15:8]  : operand_b_i[31:24];
+  assign adder_tmp_b0 = crossed ? adder_operand_b[23:16] : adder_operand_b[7:0];
+  assign adder_tmp_b1 = crossed ? adder_operand_b[31:24] : adder_operand_b[15:8];
+  assign adder_tmp_b2 = crossed ? adder_operand_b[7:0]   : adder_operand_b[23:16];
+  assign adder_tmp_b3 = crossed ? adder_operand_b[15:8]  : adder_operand_b[31:24];
 
-  assign adder_in_b0 = (sub[0] ? (oneop ? ~operand_a_i[7:0]   : ~adder_tmp_b0) : adder_tmp_b0);
-  assign adder_in_b1 = (sub[0] ? (oneop ? ~operand_a_i[15:8]  : ~adder_tmp_b1) : adder_tmp_b1);
-  assign adder_in_b2 = (sub[1] ? (oneop ? ~operand_a_i[23:16] : ~adder_tmp_b2) : adder_tmp_b2) & {8{~halved}};
-  assign adder_in_b3 = (sub[1] ? (oneop ? ~operand_a_i[31:24] : ~adder_tmp_b3) : adder_tmp_b3) & {8{~halved}};
+  assign adder_in_b0 = (sub[0] ? (oneop ? ~adder_operand_a[7:0]   : ~adder_tmp_b0) : adder_tmp_b0);
+  assign adder_in_b1 = (sub[0] ? (oneop ? ~adder_operand_a[15:8]  : ~adder_tmp_b1) : adder_tmp_b1);
+  assign adder_in_b2 = (sub[1] ? (oneop ? ~adder_operand_a[23:16] : ~adder_tmp_b2) : adder_tmp_b2) & {8{~halved}};
+  assign adder_in_b3 = (sub[1] ? (oneop ? ~adder_operand_a[31:24] : ~adder_tmp_b3) : adder_tmp_b3) & {8{~halved}};
 
   // Actual adder
   logic[8:0]  adder_result0, adder_result1, adder_result2, adder_result3;
@@ -306,8 +316,8 @@ module ibex_alu_pext #(
     .alu_adder_i          (adder_result_o),
     .equal_to_zero_i      (is_equal_result),
     .data_ind_timing_i    (data_ind_timing_i),
-    .alu_operand_a_o      (),
-    .alu_operand_b_o      (),
+    .alu_operand_a_o      (multdiv_operand_a),
+    .alu_operand_b_o      (multdiv_operand_b),
     .imd_val_q_i          (imd_val_q_i),
     .imd_val_d_o          (imd_val_d_o),
     .imd_val_we_o         (imd_val_we_o),
