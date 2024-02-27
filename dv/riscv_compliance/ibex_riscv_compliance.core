@@ -141,6 +141,7 @@ targets:
       - RV32E
       - RV32M
       - RV32B
+      - RV32P
       - RegFile
       - ICache
       - ICacheECC
