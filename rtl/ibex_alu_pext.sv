@@ -366,8 +366,8 @@ module ibex_alu_pext #(
     end
 
     unique case (width8)
-      1'b0: is_less = {is_byte_less[3], is_byte_less[3], is_byte_less[1], is_byte_less[1]};
-      1'b1: is_less = is_byte_less;   // TODO: Fix this
+      1'b0: is_less = {is_byte_less[3], is_byte_less[3], is_byte_less[1], is_byte_less[1]}; // Fix this as well
+      1'b1: is_less = is_byte_less;   // TODO: Fix this for 32 bit
     endcase
   end
 
@@ -375,26 +375,28 @@ module ibex_alu_pext #(
   logic[3:0]    comp_result_packed;
 
   always_comb begin
-    unique case (zpn_operator_i)
-      // Less than
-      ZPN_SMIN16,   ZPN_SMIN8,
-      ZPN_UMIN16,   ZPN_UMIN8,
-      ZPN_SCMPLT16, ZPN_SCMPLT8,
-      ZPN_UCMPLT16, ZPN_UCMPLT8:  comp_result_packed = is_less;
-
-      // Less than or equal
-      ZPN_SCMPLE16, ZPN_SCMPLE8,
-      ZPN_UCMPLE16, ZPN_UCMPLE8:  comp_result_packed = is_equal | is_less;
-
-      // Greater than, only used for max
-      ZPN_SMAX16,   ZPN_SMAX8,
-      ZPN_UMAX16,   ZPN_UMAX8:    comp_result_packed = ~(is_equal | is_less);
-      
-      // Including is equal
-      default:                    comp_result_packed = is_equal;
-    endcase
-
     unique case (alu_operator_i)
+      ZPN_INSTR: begin
+        unique case (zpn_operator_i)
+          // Less than
+          ZPN_SMIN16,   ZPN_SMIN8,
+          ZPN_UMIN16,   ZPN_UMIN8,
+          ZPN_SCMPLT16, ZPN_SCMPLT8,
+          ZPN_UCMPLT16, ZPN_UCMPLT8: comp_result_packed = is_less;
+
+          // Less than or equal
+          ZPN_SCMPLE16, ZPN_SCMPLE8,
+          ZPN_UCMPLE16, ZPN_UCMPLE8: comp_result_packed = is_equal | is_less;
+
+          // Greater than, only used for max
+          ZPN_SMAX16,   ZPN_SMAX8,
+          ZPN_UMAX16,   ZPN_UMAX8: comp_result_packed = ~(is_equal | is_less);
+          
+          // Including is equal
+          default: comp_result_packed = is_equal;
+        endcase
+      end
+
       ALU_EQ: comp_result_packed =  is_equal;
 
       ALU_NE: comp_result_packed = ~is_equal;
@@ -404,9 +406,9 @@ module ibex_alu_pext #(
       
       ALU_LT,   ALU_LTU,
       ALU_MIN,  ALU_MINU,
-      ALU_SLT,  ALU_SLTU: comp_result_packed = is_less;  // TODO: Fix this   
+      ALU_SLT,  ALU_SLTU: comp_result_packed = is_less;
       
-      default: ;
+      default: comp_result_packed = '0;
     endcase
   end
 
@@ -415,7 +417,7 @@ module ibex_alu_pext #(
   assign comp_result = { {8{comp_result_packed[3]}},
                          {8{comp_result_packed[2]}},
                          {8{comp_result_packed[1]}},
-                         {8{comp_result_packed[0]}} };
+                         {8{comp_result_packed[0]}} };    // TODO Make to for loop
 
   assign comparison_result_o = ~zpn_instr & comp_result_packed[0];
 
@@ -457,9 +459,56 @@ module ibex_alu_pext #(
   ////////////////
   // Bit-shifts //
   ////////////////
-  // TODO: Fix this description   //TODO: Make sure we can shift 32-bits as well  // TODO: Change to use one 32-bit shifter
-  // Using 2 16-bit shifters. to shift both halfwords right
-  // then 2 8-bit shifters to conditionally shift byte 2 and 0 left then choose between 16 or 8 bit 
+
+  // Generate shift mask with inverse, reverse thermometer coding (only 16-bit since we will only need it for halfword and byte)
+  // Will use this mask for both Shift and clip instructions
+  // Ex: shift_amt=4 -> mask = 0000_1111_1111_1111
+
+  logic shift_signed;
+  assign shift_signed = (alu_operator_i == ALU_SRA) | signed_ops; 
+
+  // bit-reverse operand_a for left shifts
+  logic[31:0] shift_operand_rev;
+  for (genvar i = 0; i < 32; i++) begin : gen_rev_operand
+    assign shift_operand_rev[i] = operand_a_i[31-i];
+  end
+
+  // Prepare operands   // TODO: Support rounding as well pipe back into adder to add one 
+  logic[31:0] shift_operand;
+  logic[4:0]  shift_amt_raw, shift_amt;
+  assign shift_operand = shift_left  ? shift_operand_rev : operand_a_i;
+  assign shift_amt_raw = imm_instr ? imm_val_i : operand_b_i[4:0];
+  assign shift_amt     = {(width32 ? shift_amt_raw[4] : 1'b0), (width8 ? 1'b0 : shift_amt_raw[3]), shift_amt_raw[2:0]};
+
+  // Generate shift mask
+  logic[3:0]  shift_signed_bytes;
+  logic[31:0] shift_mask_base, shift_mask, shift_mask_signed;
+  always_comb begin
+    for (int unsigned i = 0; i < 32; i++) begin
+      if (i < shift_amt) begin
+        shift_mask_base[31-i] = 1'b0;
+      end
+      else begin
+        shift_mask_base[31-i] = 1'b1;
+      end
+    end
+
+    unique case ({width32, width8})
+      2'b10  : shift_mask = shift_mask_base;
+      2'b01  : shift_mask = {4{shift_mask_base[31:24]}};
+      default: shift_mask = {2{shift_mask_base[31:16]}};
+    endcase
+
+    unique case ({width32, width8})
+      2'b10  : shift_signed_bytes = 4'b0000;   // 32-bit is handled internally in shifter
+      2'b01  : shift_signed_bytes = shift_signed ? {1'b0, shift_operand[23], shift_operand[15], shift_operand[7]} : 4'b0000;
+      default: shift_signed_bytes = shift_signed ? {2'b00, {2{shift_operand[15]}}} : 4'b0000;
+    endcase
+
+    for (int unsigned b = 0; b < 4; b++) begin
+      shift_mask_signed[8*b +: 8] = shift_signed_bytes[b] ? ~shift_mask[8*b +: 8] : 8'h0;
+    end
+  end
 
   // Decode if we should left-shift (right shifting by default)
   logic shift_left;
@@ -482,116 +531,28 @@ module ibex_alu_pext #(
     endcase
   end
 
-  // Clipping instructions require all ones on shifter
-  logic[31:0] shift_operand_tmp;
-  logic       shift_signed;
-  always_comb begin
-    unique case (alu_operator_i)
-      ZPN_INSTR: begin
-        unique case (zpn_operator_i)
-          ZPN_SCLIP16,  ZPN_SCLIP8,
-          ZPN_SCLIP32,  ZPN_UCLIP32: begin
-            shift_operand = 32'hffff_ffff;
-            shift_signed  = 1'b0;
-          end
-
-          default: begin
-            shift_operand_tmp = operand_a_i;
-            shift_signed      = signed_ops;
-          end
-        endcase
-      end
-
-      ALU_SRA: shift_signed = 1'b1;
-
-      default: shift_signed = 1'b0;
-    endcase
-  end
-
-  // bit-reverse operand_a for left shifts
-  logic[31:0] shift_operand_rev;
-  for (genvar i = 0; i < 32; i++) begin : gen_rev_operand
-    assign shift_operand_rev[i] = shift_operand_tmp[31-i];
-  end
-
-  // Prepare operands   // TODO: Support rounding as well pipe back into adder to add one 
-  logic[31:0] shift_operand;
-  logic[4:0]  shift_amt_raw, shift_amt;
-
-  assign shift_operand = shift_left  ? shift_operand_rev : shift_operand_tmp;
-  assign shift_amt_raw = imm_instr ? imm_val_i : operand_b_i[4:0];
-  assign shift_amt     = {(width32 ? shift_amt_raw[4] : 1'b0), (width8 ? 1'b0 : shift_amt_raw[3]), shift_amt_raw[2:0]};
-
-  // Actual shifter
+  // Actual shifter and mask_application
   logic[32:0] shift_result_raw;
   logic       unused_shift_result;
 
   assign shift_result_raw = $signed({shift_signed & shift_operand[31], shift_operand}) >>> shift_amt;
   assign unused_shift_result = shift_result_raw[32];
 
-  logic[31:0] shift_result_full;
-  assign shift_result_full = shift_result_raw[31:0];
+  logic[31:0] shift_result_masked, shift_result_signed;
+  assign shift_result_masked = shift_result_raw[31:0] & shift_mask;
+  assign shift_result_signed = shift_result_masked | shift_mask_signed;
 
-
-  // Apply mask 
-
-  /*
-  // First shifter
-  logic[16:0] shift_result_first0, shift_result_first1;
-  logic[1:0]  unused_shift_result_first; 
-  
-  assign shift_result_first0 = $signed({(shift_signed & shift_operand0[15]), shift_operand0}) >>> shift_amt;
-  assign shift_result_first1 = $signed({(shift_signed & shift_operand1[15]), shift_operand1}) >>> shift_amt;
-  
-  assign unused_shift_result_first = {shift_result_first0[16], shift_result_first1[16]};
-
-  // Second conditional shifter 
-  logic[8:0] shift_result_second0, shift_result_second2;   // Only need to do this for byte 2 and 0
-  logic[1:0] unused_shift_result_second;
-
-  assign shift_result_second0  = $signed({(shift_signed & shift_operand0[7]), shift_operand0[7:0]}) >>> shift_amt[2:0];
-  assign shift_result_second2  = $signed({(shift_signed & shift_operand1[7]), shift_operand1[7:0]}) >>> shift_amt[2:0];
-  
-  assign unused_shift_result_second = {shift_result_second2[8], shift_result_second0[8]}; // TODO
-
-  // Concatinate result
-  logic[31:0] shift_result_full;    // TODO: Fix for 32 bit shifts
-  always_comb begin
-    unique case (width8)
-      1'b1: shift_result_full = {shift_result_first1[15:8], shift_result_second2[7:0], shift_result_first0[15:8], shift_result_second0[7:0]};
-      1'b0: shift_result_full = {shift_result_first1[15:0], shift_result_first0[15:0]};
-    endcase
-  end*/
-  
-  // Flip bytes for Left-shifting
+  // Flip bytes back for Left-shifting
   logic[31:0] shift_result_rev;
   always_comb begin
     for (int unsigned i = 0; i < 32; i++) begin
-      shift_result_rev[i] = shift_result_full[31-i];
+      shift_result_rev[i] = shift_result_signed[31-i];
     end
   end
 
   // Produce final shifter output
   logic[31:0] shift_result;
-  assign shift_result = shift_left ? shift_result_rev : shift_result_full;
-
-
-  ///////////////////
-  // Bitwise Logic //
-  ///////////////////
-  logic[31:0] bw_or_result, bw_and_result, bw_xor_result, bw_result;
-
-  assign bw_or_result  = operand_a_i | operand_b_i;
-  assign bw_and_result = operand_a_i & operand_b_i;
-  assign bw_xor_result = operand_a_i ^ operand_b_i;
-
-  always_comb begin
-    unique case (alu_operator_i)
-      ALU_OR : bw_result = bw_or_result;
-      ALU_AND: bw_result = bw_and_result;
-      default: bw_result = bw_xor_result;
-    endcase
-  end
+  assign shift_result = shift_left ? shift_result_rev : shift_result_signed;
 
 
   //////////
@@ -599,9 +560,11 @@ module ibex_alu_pext #(
   //////////
   // Generate masks and clipped value
   logic[31:0] clip_mask, residual_mask, clip_val;
-  assign residual_mask  =  shift_result;
-  assign clip_mask      = ~shift_result;
-  assign clip_val       =  operand_a_i & clip_mask;
+  for (genvar a = 0; a < 32; a++) begin : gen_rev_operand
+    assign residual_mask[a] = shift_mask[31-a];
+  end
+  assign clip_mask =  ~residual_mask;
+  assign clip_val  =  operand_a_i & clip_mask;
 
   // Detect if the operands are signed
   logic[3:0] operand_negative;
@@ -615,10 +578,10 @@ module ibex_alu_pext #(
 
   // Detect if saturation is occuring
   logic[3:0] clrs_res;
-  assign clrs_res = { (bit_cnt_result[27:24] <= {1'b0, ~imm_val_i[2:0]}), 
-                      (bit_cnt_result[20:16] <= {1'b0, width8 ? 1'b0 : ~imm_val_i[3], ~imm_val_i[2:0]}),
-                      (bit_cnt_result[11:8]  <= {1'b0, ~imm_val_i[2:0]}), 
-                      (bit_cnt_result[5:0]   <= {1'b0, (~width32 ? 1'b0 : ~imm_val_i[4]), (width8 ? 1'b0 : ~imm_val_i[3]), ~imm_val_i[2:0]}) };
+  assign clrs_res = { (bit_cnt_result[27:24] <= {1'b0, ~shift_amt[2:0]}), 
+                      (bit_cnt_result[20:16] <= {1'b0, ~shift_amt[3:0]}),
+                      (bit_cnt_result[11:8]  <= {1'b0, ~shift_amt[2:0]}), 
+                      (bit_cnt_result[5:0]   <= {1'b0, ~shift_amt[4:0]}) };
 
   logic[3:0] clip_saturation;
   always_comb begin
@@ -746,6 +709,24 @@ module ibex_alu_pext #(
       2'b10  : bit_cnt_result = bit_cnt_result_width32;
       2'b01  : bit_cnt_result = bit_cnt_result_width8;
       default: bit_cnt_result = bit_cnt_result_width16;
+    endcase
+  end
+
+  
+  ///////////////////
+  // Bitwise Logic //
+  ///////////////////
+  logic[31:0] bw_or_result, bw_and_result, bw_xor_result, bw_result;
+
+  assign bw_or_result  = operand_a_i | operand_b_i;
+  assign bw_and_result = operand_a_i & operand_b_i;
+  assign bw_xor_result = operand_a_i ^ operand_b_i;
+
+  always_comb begin
+    unique case (alu_operator_i)
+      ALU_OR : bw_result = bw_or_result;
+      ALU_AND: bw_result = bw_and_result;
+      default: bw_result = bw_xor_result;
     endcase
   end
 
