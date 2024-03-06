@@ -58,9 +58,9 @@ module ibex_alu_pext_helper (
           ZPN_AVE,    ZPN_KABSW,
           ZPN_SRAu,   ZPN_SRAIu: begin
 
-            width32_o    = zpn_instr;
+            width32_o    = 1'b1;
             width8_o     = 1'b0;
-            signed_ops_o = zpn_instr;
+            signed_ops_o = 1'b1;
 
           end
 
@@ -70,7 +70,7 @@ module ibex_alu_pext_helper (
           ZPN_UCLIP32,  ZPN_KSLLW,  
           ZPN_KSLLIW: begin
             
-            width32_o    = zpn_instr;
+            width32_o    = 1'b1;
             width8_o     = 1'b0;
             signed_ops_o = 1'b0;
 
@@ -97,7 +97,7 @@ module ibex_alu_pext_helper (
 
             width32_o    = 1'b0;
             width8_o     = 1'b0;
-            signed_ops_o = zpn_instr;
+            signed_ops_o = 1'b1;
 
           end
 
@@ -135,8 +135,8 @@ module ibex_alu_pext_helper (
           ZPN_CLRS8: begin
 
             width32_o    = 1'b0;
-            width8_o     = zpn_instr;
-            signed_ops_o = zpn_instr;
+            width8_o     = 1'b1;
+            signed_ops_o = 1'b1;
 
           end
 
@@ -151,7 +151,7 @@ module ibex_alu_pext_helper (
           ZPN_CLZ8: begin
 
             width32_o    = 1'b0;
-            width8_o     = zpn_instr;
+            width8_o     = 1'b1;
             signed_ops_o = 1'b0;
 
           end
@@ -200,7 +200,9 @@ module ibex_alu_pext_helper (
           ZPN_SMIN16, ZPN_SMIN8,
           ZPN_SMAX16, ZPN_SMAX8,
           ZPN_UMIN16, ZPN_UMIN8,
-          ZPN_UMAX16, ZPN_UMAX8: alu_sub_o = 2'b11;
+          ZPN_UMAX16, ZPN_UMAX8,
+          // Mult/Accum ops
+          ZPN_KMMSB,  ZPN_KMMSBu: alu_sub_o = 2'b11;
 
           // Sub/Add ops
           ZPN_RCRSA16,  ZPN_RSTSA16,

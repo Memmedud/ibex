@@ -24,7 +24,7 @@ module ibex_alu_pext #(
   input  ibex_pkg::md_op_e              multdiv_operator_i,
 
   input  logic                          multdiv_sel_i,
-  input  logic                          mult_en_i,
+  input  logic                          mult_en_i,      // TODO: Make sure this is set for zpn mults as well
   input  logic                          div_en_i,
   input  logic                          mult_sel_i,
   input  logic                          div_sel_i,
@@ -52,11 +52,8 @@ module ibex_alu_pext #(
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
 
-  // TODO
-  logic unused_mult_div_sel;
-  assign unused_mult_div_sel = multdiv_sel_i;
-
   // Common signals and logic
+  // Use alu for multdiv operations as well
   logic[32:0] multdiv_operand_a, multdiv_operand_b;
   logic[31:0] adder_operand_a, adder_operand_b;
 
@@ -107,7 +104,7 @@ module ibex_alu_pext #(
   logic halved;
   always_comb begin
     unique case(zpn_operator_i)
-      ZPN_KADDH, ZPN_UKADDH,
+      ZPN_KADDH, ZPN_UKADDH,      // TODO: Check out sign-extension for signed
       ZPN_KSUBH, ZPN_UKSUBH: halved = zpn_instr;
 
       default: halved = 1'b0;
@@ -149,7 +146,7 @@ module ibex_alu_pext #(
 
   assign adder_in_a0 = adder_operand_a[7:0]   & {8{~oneop}};
   assign adder_in_a1 = adder_operand_a[15:8]  & {8{~oneop}};
-  assign adder_in_a2 = adder_operand_a[23:16] & {8{~oneop | ~halved}};
+  assign adder_in_a2 = adder_operand_a[23:16] & {8{~oneop | ~halved}};    // TODO fix for signed halved
   assign adder_in_a3 = adder_operand_a[31:24] & {8{~oneop | ~halved}};
 
   assign adder_tmp_b0 = crossed ? adder_operand_b[23:16] : adder_operand_b[7:0];
@@ -307,6 +304,8 @@ module ibex_alu_pext #(
     .mult_sel_i           (mult_sel_i),
     .div_sel_i            (div_sel_i),
     .zpn_operator_i       (zpn_operator_i),
+    .alu_operator_i       (alu_operator_i),
+    .zpn_instr_i          (zpn_instr),
     .signed_mode_i        (signed_mode_i),
     .md_operator_i        (multdiv_operator_i),
     .op_a_i               (operand_a_i),
@@ -844,11 +843,18 @@ module ibex_alu_pext #(
       ZPN_KSTAS16,  ZPN_KSTSA16,
       ZPN_URSTAS16, ZPN_URSTSA16,
       ZPN_UKSTAS16, ZPN_UKSTSA16,
-      ZPN_STAS16,   ZPN_STSA16: zpn_result = adder_result;
+      ZPN_STAS16,   ZPN_STSA16,
+      // Accumulating Mult ops that use ALU adder
+      ZPN_KMMAC,    ZPN_KMMACu,     // TODO: make these work
+      ZPN_KMMSB,    ZPN_KMMSBu,
+      ZPN_KMMAWB,   ZPN_KMMAWBu,
+      ZPN_KMMAWT,   ZPN_KMMAWTu,
+      ZPN_KMMAWB2,  ZPN_KMMAWB2u,
+      ZPN_KMMAWT2,  ZPN_KMMAWT2u: zpn_result = adder_result;
       
       // SIMD multiplication ops
       // 8x8       32x32         32x16          16x16      
-      ZPN_SMAQA,   ZPN_SMMUL,    ZPN_SMMWB,     ZPN_SMBB16,
+      /*ZPN_SMAQA,   ZPN_SMMUL,    ZPN_SMMWB,     ZPN_SMBB16,
       ZPN_UMAQA,   ZPN_SMMULu,   ZPN_SMMWBu,    ZPN_SMBT16,
       ZPN_SMAQAsu, ZPN_KMMAC,    ZPN_SMMWT,     ZPN_SMTT16,
       ZPN_KHM8,    ZPN_KMMACu,   ZPN_SMMWTu,    ZPN_KMDA,  
@@ -876,7 +882,7 @@ module ibex_alu_pext #(
                                                 ZPN_KDMABT,
                                                 ZPN_KDMATT,
                                                 ZPN_KHM16,
-                                                ZPN_KHMX16: zpn_result = multdiv_result;
+                                                ZPN_KHMX16: zpn_result = multdiv_result;*/
 
       // Comparison ops
       ZPN_CMPEQ16,  ZPN_CMPEQ8,
@@ -943,8 +949,8 @@ module ibex_alu_pext #(
       ALU_XOR,  ALU_OR,
       ALU_AND: result_o = bw_result;
 
-      // Adder ops
-      ALU_ADD,  ALU_SUB: result_o = adder_result;
+      // Adder ops (ADD is selected in the ALU when using multdiv ops)
+      ALU_ADD,  ALU_SUB: result_o = multdiv_sel_i ? multdiv_result : adder_result;
 
       // Shift ops
       ALU_SLL,  ALU_SRL,
@@ -977,7 +983,7 @@ module ibex_alu_pext #(
   end
 
   // Assign output signals
-  assign set_ov_o = (multdiv_set_ov | alu_set_ov) & zpn_instr;
-  assign valid_o  = multdiv_valid;
+  assign set_ov_o = (multdiv_sel_i ? multdiv_set_ov : alu_set_ov) & zpn_instr;
+  assign valid_o  =  multdiv_sel_i ? multdiv_valid : 1'b1;
 
 endmodule
