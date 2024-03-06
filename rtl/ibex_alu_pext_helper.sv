@@ -201,8 +201,8 @@ module ibex_alu_pext_helper (
           ZPN_SMAX16, ZPN_SMAX8,
           ZPN_UMIN16, ZPN_UMIN8,
           ZPN_UMAX16, ZPN_UMAX8,
-          // Mult/Accum ops
-          ZPN_KMMSB,  ZPN_KMMSBu: alu_sub_o = 2'b11;
+          // 32-bit Mult/Accum ops
+          ZPN_KMMSB,  ZPN_KMMSBu,  ZPN_MSUBR32: alu_sub_o = 2'b11;
 
           // Sub/Add ops
           ZPN_RCRSA16,  ZPN_RSTSA16,

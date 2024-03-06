@@ -76,6 +76,24 @@ module ibex_mult_pext (
   assign unused_imd_val = imd_val_q_i[1][33:32];
 
 
+  ////////////////////
+  // Decoder helper //
+  ////////////////////
+  ibex_pkg_pext::mult_pext_mode_e mult_mode;
+  logic[1:0]                      cycle_count;
+  logic[1:0]                      accum_sub;
+  logic[1:0]                      add_mode;
+
+  ibex_mult_pext_helper mult_pext_helper_i (
+    .zpn_operator_i   (zpn_operator_i),
+    .alu_operator_i   (alu_operator_i),
+    .mult_mode_o      (mult_mode),
+    .cycle_count_o    (cycle_count),
+    .accum_sub_o      (accum_sub),
+    .add_mode_o       (add_mode)
+  );
+
+
   //////////    __  __       _ _   _       _ _              //////////
   //////////   |  \/  |     | | | (_)     | (_)             //////////
   //////////   | \  / |_   _| | |_ _ _ __ | |_  ___ _ __    //////////
@@ -93,32 +111,30 @@ module ibex_mult_pext (
   assign imd_val_d_mult[0] = (mult_state == UPPER) ? {2'b0, mult_sum_32x32W} : {2'b0, mult_sum_32x16[31:0]};
   assign imd_val_d_mult[1] = {2'b0, {16{mult_sum_32x16[47]}}, mult_sum_32x16[47:32]};
 
-  // Decode how many cycles
-  always_comb begin
-    unique case (zpn_operator_i)    // TODO: Consider doing 16x16 + 16x16 in one cycle
-      ZPN_KHM16,  ZPN_KHM8,
-      ZPN_KHMX16, ZPN_KHMX8,
-      ZPN_SMMWB,  ZPN_SMMWBu,
-      ZPN_SMMWT,  ZPN_SMMWTu,
-      ZPN_KMMWB2, ZPN_KMMWB2u,
-      ZPN_KMMWT2, ZPN_KMMWT2u,
-      ZPN_SMBB16, ZPN_SMBT16,
-      ZPN_SMTT16, 
-      //ZPN_SMAQA,  ZPN_SMAQAsu,    // THis might be two cycles
-      //ZPN_UMAQA,
-      ZPN_KHMBB,  ZPN_KHMBT,
-      ZPN_KHMTT,
-      ZPN_KDMBB,  ZPN_KDMBT,        // TODO: Consider doing 16x16+32 in one cycle
-      ZPN_KDMTT: mult_single_cycle = zpn_instr_i;
 
-      default: mult_single_cycle = 1'b0;
+  /*logic doubling;
+  always_comb begin
+    unique case(zpn_operator_i)
+      // 32x32
+      ZPN_KWMMUL,   ZPN_KWMMULu,
+      // 32x16
+      ZPN_KMMWB2,   ZPN_KMMWB2u,
+      ZPN_KMMWT2,   ZPN_KMMWT2u,
+      ZPN_KMMAWB2,  ZPN_KMMAWB2u,
+      ZPN_KMMAWT2,  ZPN_KMMAWT2u,
+      // 16x16
+      ZPN_KDMBB,    ZPN_KDMBT,    ZPN_KDMTT,
+      ZPN_KDMABB,   ZPN_KDMABT,   ZPN_KDMATT: doubling = zpn_instr_i;
+
+      default: doubling = 1'b0;
     endcase
   end
+*/
 
 
   // All mults are signed exept for UMAQA and SMAQA.su
   logic[1:0] zpn_signed_mult;
-  assign zpn_signed_mult = {~(zpn_operator_i == ZPN_UMAQA), ~((zpn_operator_i == ZPN_UMAQA) && ~(zpn_operator_i == ZPN_SMAQAsu))};
+  assign zpn_signed_mult = {~(zpn_operator_i == ZPN_UMAQA), ~((zpn_operator_i == ZPN_UMAQA) | (zpn_operator_i == ZPN_SMAQAsu))};
 
 
   // Decode when operands should be crossed
@@ -131,6 +147,7 @@ module ibex_mult_pext (
       ZPN_KMXDA,  ZPN_KMAXDS, 
       ZPN_KMSXDA,
       // Implicitly crossed ops
+      ZPN_SMBT16,
       ZPN_KHMBT,    ZPN_KDMBT,      // BT ops want Ah0*Bh1
       ZPN_KDMABT,   ZPN_KMABT,
       ZPN_KMMAWT,   ZPN_KMMAWTu,    // T ops want A*Bh1
@@ -143,6 +160,7 @@ module ibex_mult_pext (
   end
 
   // Decode MAC-ops
+  // Accumulating ops are ops that are defined as rd = rd + result
   logic accum_en;
   always_comb begin
     unique case(zpn_operator_i)
@@ -166,24 +184,24 @@ module ibex_mult_pext (
   end
 
   // Decode Rounding ops    // TODO
-  logic[23:0] rounding_mask;
+  logic[31:0] rounding_mask;
   always_comb begin
     unique case(zpn_operator_i)
       // 32x32
       ZPN_SMMULu,   ZPN_KMMACu,
-      ZPN_KMMSBu,   ZPN_KWMMULu: rounding_mask = 24'h00_0;
+      ZPN_KMMSBu,   ZPN_KWMMULu: rounding_mask = (mult_state == LOWER) ? 32'h0000_8000 : 32'h0;
 
       // 32x16
       ZPN_SMMWBu,   ZPN_SMMWTu,
       ZPN_KMMAWBu,  ZPN_KMMAWTu,
       ZPN_KMMWB2u,  ZPN_KMMWT2u,
-      ZPN_KMMAWB2u, ZPN_KMMAWT2u: rounding_mask = 24'h00_0;
+      ZPN_KMMAWB2u, ZPN_KMMAWT2u: rounding_mask = (mult_state == LOWER) ? 32'h0000_0080 : 32'h0;
 
       default: rounding_mask = '0;
     endcase
   end
 
-  logic[23:0] unused_rounding;
+  logic[31:0] unused_rounding;
   assign unused_rounding = rounding_mask;
 
 
@@ -220,23 +238,23 @@ module ibex_mult_pext (
   always_comb begin
     unique case(mult_mode)
       M8x8  : begin
-        op_a_signs = {mult_ker1_op_a1[7], mult_ker1_op_a0[7], mult_ker0_op_a1[7], mult_ker0_op_a0[7]} & {4{zpn_signed_mult[0]}};
-        op_b_signs = {mult_ker1_op_b1[7], mult_ker1_op_b0[7], mult_ker0_op_b1[7], mult_ker0_op_b0[7]} & {4{zpn_signed_mult[1]}};
+        op_a_signs = {mult_ker1_op_a1[7], mult_ker1_op_a0[7], mult_ker0_op_a1[7], mult_ker0_op_a0[7]} & {4{zpn_signed_mult[1]}};
+        op_b_signs = {mult_ker1_op_b1[7], mult_ker1_op_b0[7], mult_ker0_op_b1[7], mult_ker0_op_b0[7]} & {4{zpn_signed_mult[0]}};
       end
 
       M16x16: begin
-        op_a_signs = {mult_ker1_op_a1[7], 1'b0, mult_ker0_op_a1[7], 1'b0} & {4{zpn_signed_mult[0]}};
-        op_b_signs = {mult_ker1_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[1]}};
+        op_a_signs = {mult_ker1_op_a1[7], 1'b0, mult_ker0_op_a1[7], 1'b0} & {4{zpn_signed_mult[1]}};
+        op_b_signs = {mult_ker1_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}};
       end
 
       M32x16: begin
-        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[0]}};
-        op_b_signs = {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[1]}};
+        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[1]}};
+        op_b_signs = {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}};
       end
 
       M32x32: begin
-        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[0]}};
-        op_b_signs = (mult_state == UPPER) ? {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[1]}} : 4'b0000;
+        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[1]}};
+        op_b_signs = (mult_state == UPPER) ? {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}} : 4'b0000;
       end
     endcase
   end
@@ -310,33 +328,67 @@ module ibex_mult_pext (
   assign sum_ker0 = $signed(sum_ker0_op_a) + $signed(sum_ker0_op_b);
   assign sum_ker1 = $signed(sum_ker1_op_a) + $signed(sum_ker1_op_b);
 
+
   /////////////////////////
-  // 32x16 Kernel adders //
+  // 32x16 Kernel adders //     // Note: also does sum1 + sum2 for accum ops
   /////////////////////////
   // This need to support both 8x8 accum, 16x16 adds and generation of 32x16
   logic[31:0] sum_op_a_32x16, sum_op_b_32x16;
   logic[31:0] sum_total_32x16;
+  logic       narrow_ops;
 
-  assign sum_op_a_32x16 = {sum_ker1[23:0], mult_ker1_sum00[7:0]}; // TODO: Also support subtraction
-  assign sum_op_b_32x16 = {{16{sum_ker0[24]}}, sum_ker0[23:8]};
+  assign narrow_ops = (mult_mode == M8x8) | (mult_mode == M16x16);
 
-  assign sum_total_32x16 = {$signed(sum_op_a_32x16) + $signed(sum_op_b_32x16)}[31:0];
+  always_comb begin
+    if (add_mode[0]) begin
+      sum_op_a_32x16 = {sum_ker0[23:0], mult_ker0_sum00[7:0]};
+      sum_op_b_32x16 = {sum_ker1[23:0], mult_ker1_sum00[7:0]};
+    end 
+    else begin
+      if (narrow_ops) begin
+        sum_op_a_32x16 = {sum_ker0[23:0], mult_ker0_sum00[7:0]};
+        sum_op_b_32x16 = 32'h0;
+      end
+      else begin
+        sum_op_a_32x16 = {sum_ker1[23:0], mult_ker1_sum00[7:0]};
+        sum_op_b_32x16 = {{16{sum_ker0[24]}}, sum_ker0[23:8]};
+      end
+    end
+  end
+
+  //assign sum_op_a_32x16 = wide_ops ? {sum_ker1[23:0], mult_ker1_sum00[7:0]} : rd_val_i; // TODO: Also support subtraction
+  //assign sum_op_b_32x16 = wide_ops ? {{16{sum_ker0[24]}}, sum_ker0[23:8]}   : {{8{sum_ker0[24]}}, sum_ker0[23:0]};
+
+  assign sum_total_32x16 = {$signed(sum_op_a_32x16) + $signed(sum_op_b_32x16)}[31:0] + {31'h0, accum_sub[0]};// + rounding_mask;
 
 
   /////////////////////////
-  // 32x32 Kernel adders //
+  // 32x32 Kernel adders //     // Note: also does rd + sum for accum ops
   /////////////////////////
-  logic[31:0] sum_op_a_32x32, sum_op_b_32x32;
+  logic[31:0] sum_op_a_32x32, sum_op_b_32x32, sum_op_b_32x32_neg;
   logic[31:0] sum_total_32x32;
   logic       mult_LSW;
 
-  assign mult_LSW = (md_operator_i == MD_OP_MULL);    // TODO: Maybe more ops needs LSBs
+  assign mult_LSW    = (md_operator_i == MD_OP_MULL);
 
+  always_comb begin
+    if (add_mode[1]) begin
+      sum_op_a_32x32 = rd_val_i;
+      sum_op_b_32x32 = sum_total_32x16;
+    end
+    else begin
+      if (mult_LSW) begin
+        sum_op_a_32x32 = {mult_sum_32x16[15:0], 16'h0};
+        sum_op_b_32x32 = imd_val_q_i[0][31:0];
+      end
+      else begin
+        sum_op_a_32x32 = mult_sum_32x16_MSW;
+        sum_op_b_32x32 = imd_val_q_i[1][31:0];
+      end
+    end
+  end
 
-  assign sum_op_a_32x32 = mult_LSW ? {mult_sum_32x16[15:0], 16'h0} : mult_sum_32x16_MSW;
-  assign sum_op_b_32x32 = mult_LSW ? imd_val_q_i[0][31:0] : imd_val_q_i[1][31:0];
-
-  assign sum_total_32x32 = {$signed(sum_op_a_32x32) + $signed(sum_op_b_32x32)}[31:0];
+  assign sum_total_32x32 = {$signed(sum_op_a_32x32) + $signed(sum_op_b_32x32)}[31:0] + {31'h0, accum_sub[1]};
 
 
   /////////////////
@@ -364,7 +416,7 @@ module ibex_mult_pext (
   logic[31:0] mult_sum_32x16_MSW;
   logic[15:0] unused_32x16;
 
-  assign mult_sum_32x16 = {sum_total_32x16[31:0],sum_ker0[7:0], mult_ker0_sum00[7:0]};
+  assign mult_sum_32x16 = {sum_total_32x16[31:0], sum_ker0[7:0], mult_ker0_sum00[7:0]};
   assign mult_sum_32x16_MSW = mult_sum_32x16[47:16];
   assign unused_32x16 = mult_sum_32x16[15:0];
 
@@ -380,7 +432,6 @@ module ibex_mult_pext (
   // Saturation //
   ////////////////
   // Decode saturation state
-  // TODO: Add support for the rounding values as well
   logic[3:0] sat_zeros, sat_ones, saturated;
   always_comb begin   
     sat_zeros = { &(~mult_ker1_op_a1[6:0] & ~mult_ker1_op_b1[6:0]), 
@@ -432,25 +483,57 @@ module ibex_mult_pext (
     unique case(alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i)
-          // Saturating results
-          ZPN_KHM16,  ZPN_KHMX16,
-          ZPN_KHM8,   ZPN_KHMX8: mult_result = mult_sat_result;
+          // 8x8 ops //////
+          ZPN_KHM8, ZPN_KHMX8: mult_result = {saturated[3] ? 8'h7f : mult_sum_8x8_3[14:7], 
+                                              saturated[2] ? 8'h7f : mult_sum_8x8_2[14:7],
+                                              saturated[1] ? 8'h7f : mult_sum_8x8_1[14:7],
+                                              saturated[0] ? 8'h7f : mult_sum_8x8_0[14:7]};
 
-          // Non-SIMD 16x16
-          ZPN_SMBB16, ZPN_SMBT16: mult_result = mult_sum_16x16_0;
-          ZPN_SMTT16            : mult_result = mult_sum_16x16_1;
+          ZPN_SMAQA, ZPN_SMAQAsu,
+          ZPN_UMAQA: mult_result = sum_total_32x16; 
 
-          // 32x16 ops
-          ZPN_SMMWB,  ZPN_SMMWBu,
-          ZPN_SMMWT,  ZPN_SMMWTu,
-          ZPN_KMMWB2, ZPN_KMMWB2u,// TODO: KMMWB2 not correct
-          ZPN_KMMWT2, ZPN_KMMWT2u: mult_result = mult_sum_32x16_MSW;
+          // 16x16 ops ////
+          ZPN_KHM16, ZPN_KHMX16: mult_result = {(saturated[3] & saturated[2]) ? 16'h7fff : mult_sum_16x16_1[30:15],
+                                                (saturated[1] & saturated[0]) ? 16'h7fff : mult_sum_16x16_0[30:15]};
 
-          // 32x32 ops
-          ZPN_SMMUL,  ZPN_SMMULu, // TODO: KWMMUL is not completely correct
-          ZPN_KWMMUL, ZPN_KWMMULu: mult_result = mult_sum_32x32W;
+          ZPN_SMBB16,   ZPN_SMBT16,
+          ZPN_KDMBB,    ZPN_KDMBT: mult_result = mult_sum_16x16_0;
 
-          // All other are processed in ALU
+          ZPN_SMTT16,   ZPN_KDMTT: mult_result = mult_sum_16x16_1;
+
+          ZPN_KMDA,     ZPN_KMXDA,
+          ZPN_SMDS,     ZPN_SMDRS,    
+          ZPN_SMXDS,    ZPN_KMABB,
+          ZPN_KMABT,    ZPN_KMATT: mult_result = sum_total_32x32;
+          
+          ZPN_KMADA,    ZPN_KMAXDA,
+          ZPN_KMADS,    ZPN_KMADRS,
+          ZPN_KMAXDS,   ZPN_KMSDA,
+          ZPN_KMSXDA: mult_result = sum_total_32x32;
+
+          // TODO
+          ZPN_KHMBB,    ZPN_KHMBT: mult_result = {16'h0, mult_sum_16x16_0[30:15]};
+          
+          ZPN_KHMTT: mult_result = {16'h0, mult_sum_16x16_1[30:15]};
+
+          ZPN_KDMABB,   ZPN_KDMABT,  ZPN_KDMATT: mult_result = '0; // !!!!
+
+          // 32x16 ops ////
+          ZPN_SMMWB,    ZPN_SMMWBu,
+          ZPN_SMMWT,    ZPN_SMMWTu,
+          ZPN_KMMWB2,   ZPN_KMMWB2u,
+          ZPN_KMMWT2,   ZPN_KMMWT2u: mult_result = mult_sum_32x16_MSW;
+
+          ZPN_KMMAWB,   ZPN_KMMAWBu,
+          ZPN_KMMAWT,   ZPN_KMMAWTu,
+          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
+          ZPN_KMMAWT2,  ZPN_KMMAWT2u: mult_result = sum_total_32x32;
+
+          // 32x32 ops ////
+          ZPN_SMMUL,    ZPN_SMMULu,
+          ZPN_KWMMUL,   ZPN_KWMMULu: mult_result = mult_sum_32x32W;
+
+          // All other mult ops are finished in ALU
           default: mult_result = '0;
         endcase
       end
@@ -458,41 +541,6 @@ module ibex_mult_pext (
       default: begin
         mult_result = mult_sum_32x32W;
       end
-    endcase
-  end
-
-
-  // Decode multiplier mode
-  ibex_pkg_pext::mult_pext_mode_e mult_mode;
-
-  always_comb begin
-    unique case (alu_operator_i)
-      ZPN_INSTR: begin
-        unique case (zpn_operator_i)
-          ZPN_SMAQA,    ZPN_SMAQAsu,
-          ZPN_UMAQA,    ZPN_KHM8,
-          ZPN_KHMX8: mult_mode = ibex_pkg_pext::M8x8;
-
-          ZPN_SMMUL,    ZPN_SMMULu,
-          ZPN_KMMAC,    ZPN_KMMACu,
-          ZPN_KMMSB,    ZPN_KMMSBu,
-          ZPN_KWMMUL,   ZPN_KWMMULu,
-          ZPN_MADDR32,  ZPN_MSUBR32: mult_mode = M32x32;
-
-          ZPN_SMMWB,    ZPN_SMMWBu,
-          ZPN_SMMWT,    ZPN_SMMWTu,
-          ZPN_KMMAWB,   ZPN_KMMAWBu,
-          ZPN_KMMAWT,   ZPN_KMMAWTu,
-          ZPN_KMMWB2,   ZPN_KMMWB2u,
-          ZPN_KMMWT2,   ZPN_KMMWT2u,
-          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
-          ZPN_KMMAWT2,  ZPN_KMMAWT2u: mult_mode = M32x16;
-
-          default: mult_mode = M16x16;
-        endcase
-      end
-
-      default: mult_mode = M32x32;
     endcase
   end
 
@@ -525,20 +573,20 @@ module ibex_mult_pext (
     unique case (mult_state)
       LOWER: begin
         //load_rd = accum_en ? 1'b0 : 1'b0;
-        mult_valid = mult_single_cycle;
-        imd_val_we_mult = 2'b11;
+        mult_valid = ~cycle_count[0];
+        imd_val_we_mult = {2{cycle_count[0]}}; //2'b11;
         fsm_en = 1'b1;
 
-        mult_state_next = (mult_mode == M32x32) ? UPPER : (accum_en ? ACCUM : LOWER);
+        mult_state_next = cycle_count[0] ? UPPER: LOWER;
       end
 
       UPPER: begin
         //load_rd = 1'b0;
-        mult_valid = ~accum_en;
+        mult_valid = ~cycle_count[1] & cycle_count[0];
         imd_val_we_mult = accum_en ? 2'b01 : 2'b00;
         fsm_en = accum_en | multdiv_ready_id_i;
         
-        mult_state_next = accum_en ? ACCUM : LOWER;
+        mult_state_next = cycle_count[1] ? ACCUM : LOWER;
       end
 
       ACCUM: begin

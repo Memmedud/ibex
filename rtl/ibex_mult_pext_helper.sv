@@ -1,0 +1,130 @@
+// Copyright lowRISC contributors.
+// Copyright 2018 ETH Zurich and University of Bologna, see also CREDITS.md.
+// Licensed under the Apache License, Version 2.0, see LICENSE for details.
+// SPDX-License-Identifier: Apache-2.0
+
+/*
+ * Helper unit for decoding various Pext control signals
+ */
+ module ibex_mult_pext_helper (
+  input  ibex_pkg_pext::zpn_op_e          zpn_operator_i,
+  input  ibex_pkg::alu_op_e               alu_operator_i,
+
+  output ibex_pkg_pext::mult_pext_mode_e  mult_mode_o,
+  output logic[1:0]                       cycle_count_o,
+  output logic[1:0]                       accum_sub_o,       // [sub in 32x32, sub in 32x16]
+  output logic[1:0]                       add_mode_o
+
+);
+  import ibex_pkg_pext::*;
+  import ibex_pkg::*;
+
+  // Decode multiplier mode
+  always_comb begin
+    unique case (alu_operator_i)
+      ZPN_INSTR: begin
+        unique case (zpn_operator_i)
+          ZPN_SMAQA,    ZPN_SMAQAsu,
+          ZPN_UMAQA,    ZPN_KHM8,
+          ZPN_KHMX8: mult_mode_o = ibex_pkg_pext::M8x8;
+
+          ZPN_SMMUL,    ZPN_SMMULu,
+          ZPN_KMMAC,    ZPN_KMMACu,
+          ZPN_KMMSB,    ZPN_KMMSBu,
+          ZPN_KWMMUL,   ZPN_KWMMULu,
+          ZPN_MADDR32,  ZPN_MSUBR32: mult_mode_o = M32x32;
+
+          ZPN_SMMWB,    ZPN_SMMWBu,
+          ZPN_SMMWT,    ZPN_SMMWTu,
+          ZPN_KMMAWB,   ZPN_KMMAWBu,
+          ZPN_KMMAWT,   ZPN_KMMAWTu,
+          ZPN_KMMWB2,   ZPN_KMMWB2u,
+          ZPN_KMMWT2,   ZPN_KMMWT2u,
+          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
+          ZPN_KMMAWT2,  ZPN_KMMAWT2u: mult_mode_o = M32x16;
+
+          default: mult_mode_o = M16x16;
+        endcase
+      end
+
+      default: mult_mode_o = M32x32;
+    endcase
+  end
+
+  // Decode how many cycles are required for mult op
+  // 1 cycle  -> 2'b00
+  // 2 cycles -> 2'b01
+  // 3 cycles -> 2'b11
+  always_comb begin
+    unique case (alu_operator_i)
+      ZPN_INSTR: begin
+        unique case(zpn_operator_i)
+          // 2 cycle ops
+          ZPN_SMMUL,  ZPN_SMMULu,
+          ZPN_KWMMUL, ZPN_KWMMULu: cycle_count_o = 2'b01;
+
+          // 3 cycle ops
+          ZPN_MADDR32,  ZPN_MSUBR32,
+          ZPN_KMMAC,    ZPN_KMMACu,
+          ZPN_KMMSB,    ZPN_KMMSBu: cycle_count_o = 2'b11;
+
+          // 1 cycle ops
+          default: cycle_count_o = 2'b00;
+        endcase
+      end
+
+      default: cycle_count_o = 2'b01;
+    endcase
+  end
+
+  always_comb begin
+    unique case(alu_operator_i)
+      ZPN_INSTR: begin
+        unique case(zpn_operator_i) 
+          ZPN_SMDS,   ZPN_SMDRS,  ZPN_SMXDS: accum_sub_o = 2'b10;  
+
+          ZPN_KMADS,  ZPN_KMADRS, ZPN_KMAXDS: accum_sub_o = 2'b01;
+
+          ZPN_KMSDA,  ZPN_KMSXDA: accum_sub_o = 2'b11;
+
+          default: accum_sub_o = 2'b00;
+        endcase
+      end
+
+      default: accum_sub_o = 2'b00;
+    endcase
+  end
+
+  always_comb begin
+    unique case(alu_operator_i)
+      ZPN_INSTR: begin
+        unique case(zpn_operator_i)
+          // sum1 + sum2 only
+          ZPN_KMDA,   ZPN_KMXDA,
+          ZPN_SMDS,   ZPN_SMDRS,
+          ZPN_SMXDS: add_mode_o = 2'b01;
+
+          // rd + sum only
+          ZPN_KMMAWB,   ZPN_KMMAWBu,
+          ZPN_KMMAWT,   ZPN_KMMAWTu,
+          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
+          ZPN_KMMAWT2,  ZPN_KMMAWT2u,
+          ZPN_KMABB,    ZPN_KMABT,    
+          ZPN_KMATT,    ZPN_KDMABB,
+          ZPN_KDMABT,   ZPN_KDMATT: add_mode_o = 2'b10;
+
+          // rd + sum1 + sum2
+          ZPN_KMADA,  ZPN_KMAXDA,
+          ZPN_KMADS,  ZPN_KMADRS,
+          ZPN_KMAXDS, ZPN_KMSDA,
+          ZPN_KMSXDA: add_mode_o = 2'b11;
+
+          default: add_mode_o = 2'b00;
+        endcase
+      end
+
+      default: add_mode_o = 2'b00;
+    endcase
+  end
+
+endmodule
