@@ -13,8 +13,9 @@
   output ibex_pkg_pext::mult_pext_mode_e  mult_mode_o,
   output logic[1:0]                       cycle_count_o,
   output logic[1:0]                       accum_sub_o,       // [sub in 32x32, sub in 32x16]
-  output logic[1:0]                       add_mode_o
-
+  output logic[1:0]                       add_mode_o,
+  output logic                            crossed_o,
+  output logic                            accum_o
 );
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
@@ -77,15 +78,15 @@
     endcase
   end
 
+  // Decode sub for accumulating ops (only used for less than 32x32 mults)
   always_comb begin
     unique case(alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i) 
-          ZPN_SMDS,   ZPN_SMDRS,  ZPN_SMXDS: accum_sub_o = 2'b10;  
-
+          ZPN_SMDS,   ZPN_SMDRS,  ZPN_SMXDS,  
           ZPN_KMADS,  ZPN_KMADRS, ZPN_KMAXDS: accum_sub_o = 2'b01;
 
-          ZPN_KMSDA,  ZPN_KMSXDA: accum_sub_o = 2'b11;
+          ZPN_KMSDA,  ZPN_KMSXDA: accum_sub_o = 2'b10;
 
           default: accum_sub_o = 2'b00;
         endcase
@@ -95,6 +96,7 @@
     endcase
   end
 
+  // Decode add mode
   always_comb begin
     unique case(alu_operator_i)
       ZPN_INSTR: begin
@@ -126,5 +128,69 @@
       default: add_mode_o = 2'b00;
     endcase
   end
+
+  // Decode when operands should be crossed
+  always_comb begin
+    unique case (alu_operator_i)
+      ZPN_INSTR: begin
+        unique case (zpn_operator_i)
+          // "Real" crossed ops
+          ZPN_KHMX16, ZPN_KHMX8,
+          ZPN_SMXDS,  ZPN_KMAXDA,
+          ZPN_KMXDA,  ZPN_KMAXDS, 
+          ZPN_KMSXDA,
+          // Implicitly crossed ops
+          ZPN_SMBT16,
+          ZPN_KHMBT,    ZPN_KDMBT,      // BT ops want Ah0*Bh1
+          ZPN_KDMABT,   ZPN_KMABT,
+          ZPN_KMMAWT,   ZPN_KMMAWTu,    // T ops want A*Bh1
+          ZPN_KMMAWT2,  ZPN_KMMAWT2u,
+          ZPN_SMMWT,    ZPN_SMMWTu,
+          ZPN_KMMWT2,   ZPN_KMMWT2u:  crossed_o = 1'b1;
+
+          default: crossed_o = 1'b0;
+        endcase
+      end
+
+      default: crossed_o = 1'b0;
+    endcase
+  end
+
+  // Decode ops that use ALU for accumulation
+  // Accumulating ops are ops that are defined as rd = rd + result
+  always_comb begin
+    unique case(alu_operator_i)
+      ZPN_INSTR: begin
+        unique case(zpn_operator_i)
+          ZPN_KMMAC,    ZPN_KMMACu,
+          ZPN_KMMSB,    ZPN_KMMSBu,
+          ZPN_MADDR32,  ZPN_MSUBR32: accum_o = 1'b1;
+
+          default: accum_o = 1'b0;
+        endcase
+      end
+
+      default: accum_o = 1'b0;
+    endcase
+  end
+
+  /*logic doubling;
+  always_comb begin
+    unique case(zpn_operator_i)
+      // 32x32
+      ZPN_KWMMUL,   ZPN_KWMMULu,
+      // 32x16
+      ZPN_KMMWB2,   ZPN_KMMWB2u,
+      ZPN_KMMWT2,   ZPN_KMMWT2u,
+      ZPN_KMMAWB2,  ZPN_KMMAWB2u,
+      ZPN_KMMAWT2,  ZPN_KMMAWT2u,
+      // 16x16
+      ZPN_KDMBB,    ZPN_KDMBT,    ZPN_KDMTT,
+      ZPN_KDMABB,   ZPN_KDMABT,   ZPN_KDMATT: doubling = zpn_instr_i;
+
+      default: doubling = 1'b0;
+    endcase
+  end
+*/
 
 endmodule

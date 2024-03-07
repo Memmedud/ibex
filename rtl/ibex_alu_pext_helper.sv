@@ -9,6 +9,7 @@
 module ibex_alu_pext_helper (
   input  ibex_pkg_pext::zpn_op_e  zpn_operator_i,
   input  ibex_pkg::alu_op_e       alu_operator_i,
+  input  ibex_pkg::md_op_e        md_operator_i,
   output logic                    zpn_instr_o,
 
   output logic                    imm_instr_o,
@@ -219,6 +220,14 @@ module ibex_alu_pext_helper (
           ZPN_CRAS16,   ZPN_STAS16: alu_sub_o = 2'b01;
           
           // All other ops require Add
+          default: alu_sub_o = 2'b00;
+        endcase
+      end
+
+      ALU_ADD: begin
+        unique case(md_operator_i)
+          MD_OP_DIV, MD_OP_REM: alu_sub_o = 2'b11;
+
           default: alu_sub_o = 2'b00;
         endcase
       end

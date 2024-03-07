@@ -52,17 +52,6 @@ module ibex_alu_pext #(
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
 
-  // Common signals and logic
-  // Use alu for multdiv operations as well
-  logic[32:0] multdiv_operand_a, multdiv_operand_b;
-  logic[31:0] adder_operand_a, adder_operand_b;
-
-  assign adder_operand_a = multdiv_sel_i ? multdiv_operand_a[31:0] : operand_a_i; 
-  assign adder_operand_b = multdiv_sel_i ? multdiv_operand_b[31:0] : operand_b_i; 
-
-  // TODO
-  logic[1:0] unused_operand;
-  assign unused_operand = {multdiv_operand_a[32], multdiv_operand_b[32]};
 
   ////////////////////
   // Decoder helper //
@@ -73,6 +62,7 @@ module ibex_alu_pext #(
   ibex_alu_pext_helper alu_pext_helper (
     .zpn_operator_i     (zpn_operator_i),
     .alu_operator_i     (alu_operator_i),
+    .md_operator_i      (multdiv_operator_i),
     .zpn_instr_o        (zpn_instr),
     .imm_instr_o        (imm_instr),
     .width32_o          (width32),
@@ -85,6 +75,10 @@ module ibex_alu_pext #(
   ///////////
   // Adder //
   ///////////
+
+  logic[31:0] multdiv_operand_a, multdiv_operand_b, adder_operand_a, adder_operand_b;
+  assign adder_operand_a = multdiv_sel_i ? multdiv_operand_a : operand_a_i; 
+  assign adder_operand_b = multdiv_sel_i ? multdiv_operand_b : operand_b_i; 
 
   // Decode cross Add/Sub
   logic crossed;
@@ -246,7 +240,6 @@ module ibex_alu_pext #(
 
   // Adder results mux
   logic[31:0] adder_result;
-  logic[33:0] adder_result_ext;
   always_comb begin
     unique case(alu_operator_i)
       ZPN_INSTR: begin
@@ -283,7 +276,6 @@ module ibex_alu_pext #(
       default: adder_result = normal_result;
     endcase
 
-    adder_result_ext = {adder_result3[8], normal_result, 1'b1};
     adder_result_o   = normal_result;
 
   end
@@ -305,13 +297,11 @@ module ibex_alu_pext #(
     .div_sel_i            (div_sel_i),
     .zpn_operator_i       (zpn_operator_i),
     .alu_operator_i       (alu_operator_i),
-    .zpn_instr_i          (zpn_instr),
     .signed_mode_i        (signed_mode_i),
     .md_operator_i        (multdiv_operator_i),
     .op_a_i               (operand_a_i),
     .op_b_i               (operand_b_i),
     .rd_val_i             (operand_rd_i),
-    .alu_adder_ext_i      (adder_result_ext),
     .alu_adder_i          (adder_result_o),
     .equal_to_zero_i      (is_equal_result),
     .data_ind_timing_i    (data_ind_timing_i),
@@ -845,6 +835,7 @@ module ibex_alu_pext #(
       ZPN_UKSTAS16, ZPN_UKSTSA16,
       ZPN_STAS16,   ZPN_STSA16,
       // Accumulating Mult ops that use ALU adder
+      ZPN_MADDR32,  ZPN_MSUBR32,
       ZPN_KMMAC,    ZPN_KMMACu,
       ZPN_KMMSB,    ZPN_KMMSBu: zpn_result = adder_result;
       
@@ -852,7 +843,7 @@ module ibex_alu_pext #(
       // 16x16      // 32x16      // 8x8        // 32x32                   
       ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,
       ZPN_SMBT16,   ZPN_SMMWBu,   ZPN_UMAQA,    ZPN_SMMULu,
-      ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu, 
+      ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu,
       ZPN_KMDA,     ZPN_SMMWTu,   ZPN_KHM8,
       ZPN_KMXDA,    ZPN_KWMMUL,   ZPN_KHMX8,
       ZPN_SMDS,     ZPN_KWMMULu,
