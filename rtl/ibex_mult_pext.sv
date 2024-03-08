@@ -112,7 +112,9 @@ module ibex_mult_pext (
 
   // All mults are signed exept for UMAQA and SMAQA.su
   logic[1:0] zpn_signed_mult;
+  logic      sign_extend;
   assign zpn_signed_mult = {~(zpn_operator_i == ZPN_UMAQA), ~((zpn_operator_i == ZPN_UMAQA) | (zpn_operator_i == ZPN_SMAQAsu))};
+  assign sign_extend     = ~((mult_state == LOWER) & cycle_count[0]);
 
   // Decode Rounding ops    // TODO
   logic[31:0] rounding_mask;
@@ -222,15 +224,15 @@ module ibex_mult_pext (
   assign sum_ker0_op_a1 = wide_ops ? mult_ker0_sum11[15:0] : mult_ker1_sum11[15:0];
   assign sum_ker1_op_a0 = mult_ker1_sum01[15:0];
   assign sum_ker1_op_a1 = mult_ker1_sum11[15:0];
-  assign sum_ker0_op_b0 = wide_ops ? {{8{mult_ker0_sum00[16]}}, mult_ker0_sum00[15:8]} : mult_ker0_sum00[15:0];
-  assign sum_ker0_op_b1 = wide_ops ? {{8{mult_ker0_sum10[16]}}, mult_ker0_sum10[15:8]} : mult_ker1_sum00[15:0];
-  assign sum_ker1_op_b0 = {{8{mult_ker1_sum00[16]}}, mult_ker1_sum00[15:8]};
-  assign sum_ker1_op_b1 = {{8{mult_ker1_sum10[16]}}, mult_ker1_sum10[15:8]};
+  assign sum_ker0_op_b0 = wide_ops ? {{8{mult_ker0_sum00[16] & sign_extend}}, mult_ker0_sum00[15:8]} : mult_ker0_sum00[15:0];
+  assign sum_ker0_op_b1 = wide_ops ? {{8{mult_ker0_sum10[16] & sign_extend}}, mult_ker0_sum10[15:8]} : mult_ker1_sum00[15:0];
+  assign sum_ker1_op_b0 = {{8{mult_ker1_sum00[16] & sign_extend}}, mult_ker1_sum00[15:8]};
+  assign sum_ker1_op_b1 = {{8{mult_ker1_sum10[16] & sign_extend}}, mult_ker1_sum10[15:8]};
 
-  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]} : {{7{sum_ker0_1[16]}}, sum_ker0_1};
-  assign sum_ker0_op_b = wide_ops ? {{8{sum_ker0_0[16]}}, sum_ker0_0[15:0]}  : {{7{sum_ker0_0[16]}}, sum_ker0_0};
+  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]} : {{7{sum_ker0_1[16] & sign_extend}}, sum_ker0_1};
+  assign sum_ker0_op_b = wide_ops ? {{8{sum_ker0_0[16] & sign_extend}}, sum_ker0_0[15:0]}  : {{7{sum_ker0_0[16] & sign_extend}}, sum_ker0_0};
   assign sum_ker1_op_a = {sum_ker1_1[15:0], mult_ker1_sum10[7:0]};
-  assign sum_ker1_op_b = {{8{sum_ker1_0[16]}}, sum_ker1_0[15:0]};
+  assign sum_ker1_op_b = {{8{sum_ker1_0[16] & sign_extend}}, sum_ker1_0[15:0]};
 
   assign sum_ker0_0 = $signed(sum_ker0_op_a0) + $signed(sum_ker0_op_b0);  
   assign sum_ker0_1 = $signed(sum_ker0_op_a1) + $signed(sum_ker0_op_b1);
@@ -274,7 +276,7 @@ module ibex_mult_pext (
       end
       else begin
         sum_op_a_32x16 = {sum_ker1[23:0], mult_ker1_sum00[7:0]};
-        sum_op_b_32x16 = {{16{sum_ker0[24]}}, sum_ker0[23:8]};
+        sum_op_b_32x16 = {{16{sum_ker0[24] & sign_extend}}, sum_ker0[23:8]};
       end
     end
   end
@@ -284,7 +286,7 @@ module ibex_mult_pext (
 
   /////////////////////////
   // 32x32 Kernel adders //     // Note: also does rd + sum for accum ops
-  /////////////////////////
+  /////////////////////////     // TODO: This is not needed, can be moved to ALU...
   logic[31:0] sum_op_a_32x32, sum_op_b_32x32;
   logic[31:0] sum_total_32x32;
   logic       mult_LSW;

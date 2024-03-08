@@ -354,7 +354,7 @@ module ibex_alu_pext #(
         is_byte_less[b] = ~(operand_a_i[8*b+7] ^ (signed_ops | comp_signed));
       end
     end
-    
+
     unique case ({width32, width8})
       2'b10  : is_less = {4{is_byte_less[3]}};
 
@@ -955,7 +955,7 @@ module ibex_alu_pext #(
 
       // MinMax ops (Zbpbo)
       ALU_MIN,  ALU_MAX,
-      ALU_MINU, ALU_MAXU: result_o = minmax_result;// TODO: check out how unsigned is handled here
+      ALU_MINU, ALU_MAXU: result_o = minmax_result;
 
       // Bitcount ops (Zbpbo)
       ALU_CLZ: result_o = bit_cnt_result;
