@@ -115,7 +115,7 @@ module ibex_mult_pext (
   //assign signed_mult = z  // TODO: Choose signed/unsigned for non-zpn
   
   logic sign_extend;    // TODO
-  assign sign_extend = 1'b1;//~((mult_state == LOWER) & cycle_count[0]);
+  assign sign_extend = (~((mult_state == LOWER) & cycle_count[0])) | (md_operator_i == MD_OP_MULH);
 
   // Decode Rounding ops    // TODO
   logic[31:0] rounding_mask;
@@ -141,6 +141,7 @@ module ibex_mult_pext (
   logic[7:0] mult_ker0_op_a0, mult_ker0_op_a1, mult_ker1_op_a0, mult_ker1_op_a1,
              mult_ker0_op_b0, mult_ker0_op_b1, mult_ker1_op_b0, mult_ker1_op_b1;
 
+  // Prepare operands
   assign mult_ker0_op_a0 = op_a_i[7:0];
   assign mult_ker0_op_a1 = op_a_i[15:8];
   assign mult_ker1_op_a0 = op_a_i[23:16];
@@ -175,7 +176,7 @@ module ibex_mult_pext (
 
       M32x32: begin
         op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[1]}};
-        op_b_signs = (mult_state == UPPER) ? {mult_ker1_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}} : 4'b0000;
+        op_b_signs = (mult_state == UPPER) ? {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}} : 4'b0000;
       end
     endcase
   end
@@ -229,8 +230,8 @@ module ibex_mult_pext (
   assign sum_ker1_op_b0 = {{8{mult_ker1_sum00[16] & sign_extend}}, mult_ker1_sum00[15:8]};
   assign sum_ker1_op_b1 = {{8{mult_ker1_sum10[16] & sign_extend}}, mult_ker1_sum10[15:8]};
 
-  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]}         : {{7{sum_ker0_1[16] & sign_extend}}, sum_ker0_1};
-  assign sum_ker0_op_b = wide_ops ? {{7{sum_ker0_0[16] & sign_extend}}, sum_ker0_0}  : {{7{sum_ker0_0[16] & sign_extend}}, sum_ker0_0};   // TODO maybe
+  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]}               : {{7{sum_ker0_1[16] & sign_extend}}, sum_ker0_1};
+  assign sum_ker0_op_b = wide_ops ? {{8{sum_ker0_0[16] & sign_extend}}, sum_ker0_0[15:0]}  : {{7{sum_ker0_0[16] & sign_extend}}, sum_ker0_0};   // TODO maybe
   assign sum_ker1_op_a = {sum_ker1_1[15:0], mult_ker1_sum10[7:0]};
   assign sum_ker1_op_b = {{8{sum_ker1_0[16] & sign_extend}}, sum_ker1_0[15:0]};
 
@@ -305,16 +306,16 @@ module ibex_mult_pext (
       end
       else begin
         sum_op_a_32x32 = mult_sum_32x16;
-        sum_op_b_32x32 = {imd_val_q_i[1][31:0], imd_val_q_i[1][31:16]};
+        sum_op_b_32x32 = {imd_val_q_i[1][31:0], imd_val_q_i[0][31:16]};
       end
     end
   end
 
-  assign sum_total_32x32 = {$signed(sum_op_a_32x32) + $signed(sum_op_b_32x32)+ {46'h0, accum_sub[1]}}[47:16];
+  assign sum_total_32x32 = {$signed(sum_op_a_32x32) + $signed(sum_op_b_32x32) + {31'h0, accum_sub[1], 16'h0}}[47:16];
 
 
   ////////////////
-  // Saturation //
+  // Saturation //    // TODO: Fix this
   ////////////////
   // Decode saturation state
   logic[3:0] sat_zeros, sat_ones, saturated;
