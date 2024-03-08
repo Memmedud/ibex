@@ -493,9 +493,9 @@ module ibex_alu_pext #(
     endcase
 
     unique case ({width32, width8})
-      2'b10  : shift_signed_bytes = 4'b0000;   // 32-bit is handled internally in shifter
-      2'b01  : shift_signed_bytes = shift_signed ? {1'b0, shift_operand[23], shift_operand[15], shift_operand[7]} : 4'b0000;
-      default: shift_signed_bytes = shift_signed ? {2'b00, {2{shift_operand[15]}}} : 4'b0000;
+      2'b10  : shift_signed_bytes = shift_signed ? {4{shift_operand[31]}} : 4'b0000;   // 32-bit is handled internally in shifter
+      2'b01  : shift_signed_bytes = shift_signed ? {shift_operand[31], shift_operand[23], shift_operand[15], shift_operand[7]} : 4'b0000;
+      default: shift_signed_bytes = shift_signed ? {{2{shift_operand[31]}}, {2{shift_operand[15]}}} : 4'b0000;
     endcase
 
     for (int unsigned b = 0; b < 4; b++) begin
