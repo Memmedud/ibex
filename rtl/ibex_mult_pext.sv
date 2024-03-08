@@ -97,7 +97,7 @@ module ibex_mult_pext (
   logic [1:0]   quadrant;
  
   assign imd_val_d_mult[0] = (mult_state == UPPER) ? {2'b0, mult_sum_32x32W} : {2'b0, mult_sum_32x16[31:0]};
-  assign imd_val_d_mult[1] = {2'b0, {16{mult_sum_32x16[47]}}, mult_sum_32x16[47:32]};
+  assign imd_val_d_mult[1] = {2'b0, {16{mult_sum_32x16[47] & sign_extend}}, mult_sum_32x16[47:32]};
 
   // Assign quadrant signal
   always_comb begin
@@ -109,12 +109,13 @@ module ibex_mult_pext (
     endcase
   end
 
-
-  // All mults are signed exept for UMAQA and SMAQA.su
-  logic[1:0] zpn_signed_mult;
-  logic      sign_extend;
+  // All mults are signed except for UMAQA and SMAQA.su
+  logic[1:0] zpn_signed_mult;//, signed_mult;
   assign zpn_signed_mult = {~(zpn_operator_i == ZPN_UMAQA), ~((zpn_operator_i == ZPN_UMAQA) | (zpn_operator_i == ZPN_SMAQAsu))};
-  assign sign_extend     = ~((mult_state == LOWER) & cycle_count[0]);
+  //assign signed_mult = z  // TODO: Choose signed/unsigned for non-zpn
+  
+  logic sign_extend;    // TODO
+  assign sign_extend = 1'b1;//~((mult_state == LOWER) & cycle_count[0]);
 
   // Decode Rounding ops    // TODO
   logic[31:0] rounding_mask;
@@ -174,7 +175,7 @@ module ibex_mult_pext (
 
       M32x32: begin
         op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[1]}};
-        op_b_signs = (mult_state == UPPER) ? {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}} : 4'b0000;
+        op_b_signs = (mult_state == UPPER) ? {mult_ker1_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}} : 4'b0000;
       end
     endcase
   end
@@ -183,7 +184,6 @@ module ibex_mult_pext (
   ////////////////////////
   // Actual multipliers //
   ////////////////////////
-
   // Using 8 8x8 multipliers in a Baugh-Wooley scheme.
   // All 8x8, 16x16 and 32x16 mults take one clock cycle,
   // while 32x32 needs two or three cycles
@@ -229,8 +229,8 @@ module ibex_mult_pext (
   assign sum_ker1_op_b0 = {{8{mult_ker1_sum00[16] & sign_extend}}, mult_ker1_sum00[15:8]};
   assign sum_ker1_op_b1 = {{8{mult_ker1_sum10[16] & sign_extend}}, mult_ker1_sum10[15:8]};
 
-  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]} : {{7{sum_ker0_1[16] & sign_extend}}, sum_ker0_1};
-  assign sum_ker0_op_b = wide_ops ? {{8{sum_ker0_0[16] & sign_extend}}, sum_ker0_0[15:0]}  : {{7{sum_ker0_0[16] & sign_extend}}, sum_ker0_0};
+  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]}         : {{7{sum_ker0_1[16] & sign_extend}}, sum_ker0_1};
+  assign sum_ker0_op_b = wide_ops ? {{7{sum_ker0_0[16] & sign_extend}}, sum_ker0_0}  : {{7{sum_ker0_0[16] & sign_extend}}, sum_ker0_0};   // TODO maybe
   assign sum_ker1_op_a = {sum_ker1_1[15:0], mult_ker1_sum10[7:0]};
   assign sum_ker1_op_b = {{8{sum_ker1_0[16] & sign_extend}}, sum_ker1_0[15:0]};
 
@@ -286,8 +286,8 @@ module ibex_mult_pext (
 
   /////////////////////////
   // 32x32 Kernel adders //     // Note: also does rd + sum for accum ops
-  /////////////////////////     // TODO: This is not needed, can be moved to ALU...
-  logic[31:0] sum_op_a_32x32, sum_op_b_32x32;
+  /////////////////////////
+  logic[47:0] sum_op_a_32x32, sum_op_b_32x32;
   logic[31:0] sum_total_32x32;
   logic       mult_LSW;
 
@@ -295,23 +295,49 @@ module ibex_mult_pext (
 
   always_comb begin
     if (add_mode[1]) begin
-      sum_op_a_32x32 = rd_val_i;
-      sum_op_b_32x32 = sum_total_32x16;
+      sum_op_a_32x32 = {rd_val_i, 16'h0};
+      sum_op_b_32x32 = {sum_total_32x16, 16'h0};
     end
     else begin
       if (mult_LSW) begin
-        sum_op_a_32x32 = {mult_sum_32x16[15:0], 16'h0};
-        sum_op_b_32x32 = imd_val_q_i[0][31:0];
+        sum_op_a_32x32 = {mult_sum_32x16[15:0], 32'h0};
+        sum_op_b_32x32 = {imd_val_q_i[0][31:0], 16'h0};
       end
       else begin
-        sum_op_a_32x32 = mult_sum_32x16_MSW;
-        sum_op_b_32x32 = imd_val_q_i[1][31:0];
+        sum_op_a_32x32 = mult_sum_32x16;
+        sum_op_b_32x32 = {imd_val_q_i[1][31:0], imd_val_q_i[1][31:16]};
       end
     end
   end
 
-  assign sum_total_32x32 = {$signed(sum_op_a_32x32) + $signed(sum_op_b_32x32)}[31:0] + {31'h0, accum_sub[1]};
+  assign sum_total_32x32 = {$signed(sum_op_a_32x32) + $signed(sum_op_b_32x32)+ {46'h0, accum_sub[1]}}[47:16];
 
+
+  ////////////////
+  // Saturation //
+  ////////////////
+  // Decode saturation state
+  logic[3:0] sat_zeros, sat_ones, saturated;
+  always_comb begin   
+    sat_zeros = { &(~mult_ker1_op_a1[6:0] & ~mult_ker1_op_b1[6:0]), 
+                  &(~mult_ker1_op_a0[6:0] & ~mult_ker1_op_b0[6:0]), 
+                  &(~mult_ker0_op_a1[6:0] & ~mult_ker0_op_b1[6:0]), 
+                  &(~mult_ker0_op_a0[6:0] & ~mult_ker0_op_b0[6:0])};
+
+    sat_ones  = {mult_ker1_op_a1[7] & mult_ker1_op_b0[7], mult_ker1_op_a0[7] & mult_ker1_op_b0[7], 
+                 mult_ker0_op_a1[7] & mult_ker0_op_b0[7], mult_ker0_op_a0[7] & mult_ker0_op_b0[7]};
+
+    unique case(mult_mode)
+      M32x32: saturated = 4'b0000; // TODO
+      M8x8  : saturated = {sat_ones[3] & sat_zeros[3], sat_ones[2] & sat_zeros[2], 
+                           sat_ones[1] & sat_zeros[1], sat_ones[0] & sat_zeros[0]};
+      M16x16: saturated = {sat_ones[3] & sat_zeros[3], 1'b0, sat_ones[1] & sat_zeros[1], 1'b0};
+      M32x16: saturated = 4'b0000;
+    endcase
+
+    set_ov_o = (|saturated) & mult_en_i;
+  end
+  
 
   /////////////////
   // 8x8 results //
@@ -336,11 +362,9 @@ module ibex_mult_pext (
   ///////////////////
   logic[47:0] mult_sum_32x16;
   logic[31:0] mult_sum_32x16_MSW;
-  logic[15:0] unused_32x16;
 
   assign mult_sum_32x16 = {sum_total_32x16[31:0], sum_ker0[7:0], mult_ker0_sum00[7:0]};
   assign mult_sum_32x16_MSW = mult_sum_32x16[47:16];
-  assign unused_32x16 = mult_sum_32x16[15:0];
 
 
   ///////////////////
@@ -350,32 +374,6 @@ module ibex_mult_pext (
   assign mult_sum_32x32W = sum_total_32x32;
 
 
-  ////////////////
-  // Saturation //
-  ////////////////
-  // Decode saturation state
-  logic[3:0] sat_zeros, sat_ones, saturated;
-  always_comb begin   
-    sat_zeros = { &(~mult_ker1_op_a1[6:0] & ~mult_ker1_op_b1[6:0]), 
-                  &(~mult_ker1_op_a0[6:0] & ~mult_ker1_op_b0[6:0]), 
-                  &(~mult_ker0_op_a1[6:0] & ~mult_ker0_op_b1[6:0]), 
-                  &(~mult_ker0_op_a0[6:0] & ~mult_ker0_op_b0[6:0])};
-
-    sat_ones  = {mult_ker1_op_a1[7] & mult_ker1_op_b0[7], mult_ker1_op_a0[7] & mult_ker1_op_b0[7], 
-                 mult_ker0_op_a1[7] & mult_ker0_op_b0[7], mult_ker0_op_a0[7] & mult_ker0_op_b0[7]};
-
-    unique case(mult_mode)    // Saturation mults are signed
-      M32x32: saturated = 4'b0000; // TODO
-      M8x8  : saturated = {sat_ones[3] & sat_zeros[3], sat_ones[2] & sat_zeros[2], 
-                           sat_ones[1] & sat_zeros[1], sat_ones[0] & sat_zeros[0]};
-      M16x16: saturated = {sat_ones[3] & sat_zeros[3], 1'b0, sat_ones[1] & sat_zeros[1], 1'b0};
-      M32x16: saturated = 4'b0000;
-    endcase
-
-    set_ov_o = (|saturated) & mult_en_i;
-  end
-
-
   //////////////////////
   // Final result Mux //
   //////////////////////
@@ -383,7 +381,7 @@ module ibex_mult_pext (
     unique case(alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i)
-          // 8x8 ops //////
+          // 8x8 ops ////
           ZPN_KHM8, ZPN_KHMX8: mult_result = {saturated[3] ? 8'h7f : mult_sum_8x8_3, 
                                               saturated[2] ? 8'h7f : mult_sum_8x8_2,
                                               saturated[1] ? 8'h7f : mult_sum_8x8_1,
@@ -443,6 +441,7 @@ module ibex_mult_pext (
     endcase
   end
 
+
   ////////////////////
   // Multiplier FSM //
   ////////////////////
@@ -452,6 +451,18 @@ module ibex_mult_pext (
   } mult_pext_fsm_e;
   mult_pext_fsm_e    mult_state, mult_state_next;
   logic              fsm_en;
+
+  // FSM state clocking
+  always_ff @(posedge clk_i or negedge rst_ni) begin
+    if (~rst_ni) begin
+      mult_state <= LOWER;
+    end
+    else begin
+      if (mult_en_i & fsm_en) begin
+        mult_state <= mult_state_next;
+      end
+    end
+  end
 
   // FSM state decoding
   always_comb begin
@@ -475,7 +486,7 @@ module ibex_mult_pext (
         mult_valid = ~cycle_count[1] & cycle_count[0];
         imd_val_we_mult = (accum_en ? 2'b01 : 2'b00) & {2{mult_en_i}};
         fsm_en = accum_en | multdiv_ready_id_i;
-        
+
         mult_state_next = cycle_count[1] ? ACCUM : LOWER;
       end
 
@@ -489,18 +500,6 @@ module ibex_mult_pext (
         mult_state_next = LOWER;
       end
     endcase
-  end
-
-  // FSM state clocking
-  always_ff @(posedge clk_i or negedge rst_ni) begin
-    if (~rst_ni) begin
-      mult_state <= LOWER;
-    end
-    else begin
-      if (mult_en_i & fsm_en) begin
-        mult_state <= mult_state_next;
-      end
-    end
   end
 
 
