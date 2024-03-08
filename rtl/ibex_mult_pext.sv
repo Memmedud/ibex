@@ -362,13 +362,15 @@ module ibex_mult_pext (
     sat_ones  = {mult_ker1_op_a1[7] & mult_ker1_op_b0[7], mult_ker1_op_a0[7] & mult_ker1_op_b0[7], 
                  mult_ker0_op_a1[7] & mult_ker0_op_b0[7], mult_ker0_op_a0[7] & mult_ker0_op_b0[7]};
 
-    unique case(mult_mode)    // Saturation mults are signed    // TODO: Fix for M32x16
-      M32x32: saturated = {sat_ones[3] & sat_zeros[3], 3'b000};
+    unique case(mult_mode)    // Saturation mults are signed
+      M32x32: saturated = 4'b0000; // TODO
       M8x8  : saturated = {sat_ones[3] & sat_zeros[3], sat_ones[2] & sat_zeros[2], 
                            sat_ones[1] & sat_zeros[1], sat_ones[0] & sat_zeros[0]};
       M16x16: saturated = {sat_ones[3] & sat_zeros[3], 1'b0, sat_ones[1] & sat_zeros[1], 1'b0};
       M32x16: saturated = 4'b0000;
     endcase
+
+    set_ov_o = (|saturated) & mult_en_i;
   end
 
 
@@ -461,7 +463,7 @@ module ibex_mult_pext (
     unique case (mult_state)
       LOWER: begin
         mult_valid = ~cycle_count[0];
-        imd_val_we_mult = {2{cycle_count[0]}};
+        imd_val_we_mult = {2{cycle_count[0]}} & {2{mult_en_i}};
         fsm_en = 1'b1;
 
         mult_state_next = cycle_count[0] ? UPPER: LOWER;
@@ -469,7 +471,7 @@ module ibex_mult_pext (
 
       UPPER: begin
         mult_valid = ~cycle_count[1] & cycle_count[0];
-        imd_val_we_mult = accum_en ? 2'b01 : 2'b00;
+        imd_val_we_mult = (accum_en ? 2'b01 : 2'b00) & {2{mult_en_i}};
         fsm_en = accum_en | multdiv_ready_id_i;
         
         mult_state_next = cycle_count[1] ? ACCUM : LOWER;

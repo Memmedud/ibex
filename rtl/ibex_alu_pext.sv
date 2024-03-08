@@ -57,7 +57,7 @@ module ibex_alu_pext #(
   // Decoder helper //
   ////////////////////
   logic[1:0] sub;
-  logic zpn_instr, imm_instr, width32, width8, signed_ops;
+  logic zpn_instr, imm_instr, width32, width8, signed_ops, comp_signed;
   
   ibex_alu_pext_helper alu_pext_helper (
     .zpn_operator_i     (zpn_operator_i),
@@ -68,6 +68,7 @@ module ibex_alu_pext #(
     .width32_o          (width32),
     .width8_o           (width8),
     .signed_ops_o       (signed_ops),
+    .comp_signed_o      (comp_signed),
     .alu_sub_o          (sub)
   );
 
@@ -350,7 +351,7 @@ module ibex_alu_pext #(
         is_byte_less[b] = (adder_result[8*b+7] == 1'b1);
       end
       else begin
-        is_byte_less[b] = ~(operand_a_i[8*b+7] ^ (signed_ops)); // TODO: remember alu thingies for signed ops...
+        is_byte_less[b] = ~(operand_a_i[8*b+7] ^ (signed_ops | comp_signed));
       end
     end
 
@@ -402,11 +403,11 @@ module ibex_alu_pext #(
   end
 
   // Widen output from bitwise to bytewise
-  logic[31:0]   comp_result;      // TODO fix for noext
+  logic[31:0]   comp_result;
   assign comp_result = { {8{comp_result_packed[3]}},
                          {8{comp_result_packed[2]}},
                          {8{comp_result_packed[1]}},
-                         {8{comp_result_packed[0]}} };    // TODO Make to for loop
+                         {8{comp_result_packed[0]}} };    //TODO Make to for loop
 
   assign comparison_result_o = ~zpn_instr & comp_result_packed[0];
 

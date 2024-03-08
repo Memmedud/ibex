@@ -16,6 +16,7 @@ module ibex_alu_pext_helper (
   output logic                    width32_o,
   output logic                    width8_o,
   output logic                    signed_ops_o,
+  output logic                    comp_signed_o,
   output logic[1:0]               alu_sub_o
   //output logic                    crossed_o
 );
@@ -244,6 +245,17 @@ module ibex_alu_pext_helper (
       ALU_MAX,  ALU_MAXU: alu_sub_o = 2'b11;
 
       default: alu_sub_o = 2'b00;
+    endcase
+  end
+
+  // non-zpn comp signed decoder
+  always_comb begin
+    unique case(alu_operator_i)
+      ALU_GE,   ALU_LT,
+      ALU_SLT,  ALU_MIN,
+      ALU_MAX: comp_signed_o = 1'b1;
+
+      default: comp_signed_o = 1'b0;
     endcase
   end
 
