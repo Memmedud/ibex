@@ -141,8 +141,8 @@ module ibex_alu_pext #(
 
   assign adder_in_a0 = adder_operand_a[7:0]   & {8{~oneop}};
   assign adder_in_a1 = adder_operand_a[15:8]  & {8{~oneop}};
-  assign adder_in_a2 = adder_operand_a[23:16] & {8{~oneop | ~halved}};    // TODO fix for signed halved
-  assign adder_in_a3 = adder_operand_a[31:24] & {8{~oneop | ~halved}};
+  assign adder_in_a2 = halved ? {8{adder_operand_a[15]}} : adder_operand_a[23:16] & {8{~oneop}};
+  assign adder_in_a3 = halved ? {8{adder_operand_a[15]}} : adder_operand_a[31:24] & {8{~oneop}};
 
   assign adder_tmp_b0 = crossed ? adder_operand_b[23:16] : adder_operand_b[7:0];
   assign adder_tmp_b1 = crossed ? adder_operand_b[31:24] : adder_operand_b[15:8];
@@ -151,8 +151,8 @@ module ibex_alu_pext #(
 
   assign adder_in_b0 = (sub[0] ? (oneop ? ~adder_operand_a[7:0]   : ~adder_tmp_b0) : adder_tmp_b0);
   assign adder_in_b1 = (sub[0] ? (oneop ? ~adder_operand_a[15:8]  : ~adder_tmp_b1) : adder_tmp_b1);
-  assign adder_in_b2 = (sub[1] ? (oneop ? ~adder_operand_a[23:16] : ~adder_tmp_b2) : adder_tmp_b2) & {8{~halved}};
-  assign adder_in_b3 = (sub[1] ? (oneop ? ~adder_operand_a[31:24] : ~adder_tmp_b3) : adder_tmp_b3) & {8{~halved}};
+  assign adder_in_b2 = halved ? {8{adder_tmp_b1[7]}} : (sub[1] ? (oneop ? ~adder_operand_a[23:16] : ~adder_tmp_b2) : adder_tmp_b2);   // TODO: Make this pretty
+  assign adder_in_b3 = halved ? {8{adder_tmp_b1[7]}} : (sub[1] ? (oneop ? ~adder_operand_a[31:24] : ~adder_tmp_b3) : adder_tmp_b3);
 
   // Actual adder
   logic[8:0]  adder_result0, adder_result1, adder_result2, adder_result3;
@@ -212,30 +212,30 @@ module ibex_alu_pext #(
   always_comb begin
     unique case ({signed_ops, width32, width8})
 
-      3'b101 :  saturating_result = { saturated[3] ? (adder_result3[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result3[7:0], 
-                                      saturated[2] ? (adder_result2[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result2[7:0],
-                                      saturated[1] ? (adder_result1[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result1[7:0],
-                                      saturated[0] ? (adder_result0[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result0[7:0] }; 
+      3'b101 : saturating_result = { saturated[3] ? (adder_result3[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result3[7:0], 
+                                     saturated[2] ? (adder_result2[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result2[7:0],
+                                     saturated[1] ? (adder_result1[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result1[7:0],
+                                     saturated[0] ? (adder_result0[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : adder_result0[7:0] }; 
  
-      3'b100 : saturating_result  = { saturated[3] ? (adder_result3[8] ? SAT_VAL_S16L : SAT_VAL_S16H) : {adder_result3[7:0], adder_result2[7:0]},
-                                      saturated[1] ? (adder_result1[8] ? SAT_VAL_S16L : SAT_VAL_S16H) : {adder_result1[7:0], adder_result0[7:0]} };
+      3'b100 : saturating_result = { saturated[3] ? (adder_result3[8] ? SAT_VAL_S16L : SAT_VAL_S16H) : {adder_result3[7:0], adder_result2[7:0]},
+                                     saturated[1] ? (adder_result1[8] ? SAT_VAL_S16L : SAT_VAL_S16H) : {adder_result1[7:0], adder_result0[7:0]} };
 
-      3'b110 : saturating_result  = { saturated[3] ? (adder_result3[8] ? SAT_VAL_S32L : SAT_VAL_S32H) : {adder_result3[7:0], adder_result2[7:0], adder_result1[7:0], adder_result0[7:0]}};
+      3'b110 : saturating_result = { saturated[3] ? (adder_result3[8] ? SAT_VAL_S32L : SAT_VAL_S32H) : {adder_result3[7:0], adder_result2[7:0], adder_result1[7:0], adder_result0[7:0]}};
       
-      3'b001 :  saturating_result = { (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result3[7:0]),
-                                      (adder_result2[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result2[7:0]),
-                                      (adder_result1[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result1[7:0]),
-                                      (adder_result0[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result0[7:0]) }; 
+      3'b001 : saturating_result = { (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result3[7:0]),
+                                     (adder_result2[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result2[7:0]),
+                                     (adder_result1[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result1[7:0]),
+                                     (adder_result0[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result0[7:0]) }; 
 
-      3'b010 : saturating_result  = { (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result3[7:0]),
-                                      (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result2[7:0]),
-                                      (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result1[7:0]),
-                                      (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result0[7:0]) };
+      3'b010 : saturating_result = { (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result3[7:0]),
+                                     (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result2[7:0]),
+                                     (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result1[7:0]),
+                                     (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result0[7:0]) };
 
-      default: saturating_result  = { (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result3[7:0]),
-                                      (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result2[7:0]),
-                                      (adder_result1[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result1[7:0]),
-                                      (adder_result1[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result0[7:0]) };
+      default: saturating_result = { (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result3[7:0]),
+                                     (adder_result3[8] ^ sub[1] ? (sub[1] ? 8'b0 : SAT_VAL_U8) : adder_result2[7:0]),
+                                     (adder_result1[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result1[7:0]),
+                                     (adder_result1[8] ^ sub[0] ? (sub[0] ? 8'b0 : SAT_VAL_U8) : adder_result0[7:0]) };
     endcase
   end
 
@@ -354,10 +354,13 @@ module ibex_alu_pext #(
         is_byte_less[b] = ~(operand_a_i[8*b+7] ^ (signed_ops | comp_signed));
       end
     end
+    
+    unique case ({width32, width8})
+      2'b10  : is_less = {4{is_byte_less[3]}};
 
-    unique case (width8)
-      1'b0: is_less = {is_byte_less[3], is_byte_less[3], is_byte_less[1], is_byte_less[1]}; // Fix this as well
-      1'b1: is_less = is_byte_less;   // TODO: Fix this for 32 bit
+      2'b01  : is_less = is_byte_less;
+
+      default: is_less = {{2{is_byte_less[3]}}, {2{is_byte_less[1]}}};
     endcase
   end
 
