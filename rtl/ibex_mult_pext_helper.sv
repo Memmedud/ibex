@@ -27,7 +27,7 @@
         unique case (zpn_operator_i)
           ZPN_SMAQA,    ZPN_SMAQAsu,
           ZPN_UMAQA,    ZPN_KHM8,
-          ZPN_KHMX8: mult_mode_o = ibex_pkg_pext::M8x8;
+          ZPN_KHMX8: mult_mode_o = M8x8;
 
           ZPN_SMMUL,    ZPN_SMMULu,
           ZPN_KMMAC,    ZPN_KMMACu,
@@ -73,7 +73,8 @@
           default: cycle_count_o = 2'b00;
         endcase
       end
-
+      
+      // Normal mults are 2 cycle
       default: cycle_count_o = 2'b01;
     endcase
   end
