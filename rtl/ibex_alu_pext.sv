@@ -431,8 +431,17 @@ module ibex_alu_pext #(
   /////////
   // ABS //
   /////////
-  logic[31:0]   abs_result;
-  logic[3:0]    abs_negative;
+  logic[31:0] abs_result, abs_overflow_val;
+  logic[3:0]  abs_overflow_byte, abs_overflow, abs_negative;
+
+  always_comb begin
+    abs_overflow_val = {1'b1, 7'h00, width8, 7'h00, ~width32, 7'h00, width8, 7'h00};
+
+
+    for (int unsigned b = 0; b < 4; b++) begin
+      abs_overflow_byte[b] = (operand_a_i[8*b +: 8] == abs_overflow_val[8*b +: 8]);
+    end
+  end
 
   always_comb begin
     unique case ({width32, width8})
@@ -440,12 +449,19 @@ module ibex_alu_pext #(
       2'b01  : abs_negative = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]};
       default: abs_negative = {{2{operand_a_i[31]}}, {2{operand_a_i[15]}}};
     endcase
+
+    unique case ({width32, width8})
+      2'b10  : abs_overflow = {4{&abs_overflow_byte}};
+      2'b01  : abs_overflow = abs_overflow_byte;
+      default: abs_overflow = {{2{&abs_overflow_byte[3:2]}}, {2{&abs_overflow_byte[1:0]}}};
+    endcase
   end
 
-  // TODO: Add check for 80, 8000, 8000_0000
-
-  for (genvar b = 0; b < 4; b++) begin : gen_abs_result
-    assign abs_result[8*b +: 8] = abs_negative[b] ? normal_result[8*b +: 8] : operand_a_i[8*b +: 8];
+  // Generate final Abs-result
+  always_comb begin
+    for (int unsigned b = 0; b < 4; b++) begin
+      abs_result[8*b +: 8] = abs_overflow[b] ? ~abs_overflow_val[8*b +: 8] : (abs_negative[b] ? normal_result[8*b +: 8] : operand_a_i[8*b +: 8]);
+    end
   end
 
 
