@@ -567,22 +567,29 @@ module ibex_alu_pext #(
   //////////
   // CLIP //
   //////////
-  // Generate masks and clipped value
-  logic[31:0] clip_mask, residual_mask, clip_val;
-  for (genvar a = 0; a < 32; a++) begin : gen_rev_operand
-    assign residual_mask[a] = shift_mask[31-a];
-  end
-  assign clip_mask =  ~residual_mask;
-  assign clip_val  =  operand_a_i & clip_mask;
 
-  // Detect if the operands are signed
+  // Detect if the operands are negative (all Clip ops are signed)
   logic[3:0] operand_negative;
   always_comb begin
     unique case ({width32, width8})
-      2'b01  : operand_negative = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]} & {4{((~imm_val_i[4] & ~width32) | signed_ops)}};
-      2'b10  : operand_negative = {4{operand_a_i[31]}} & {4{signed_ops}};
-      default: operand_negative = {{2{operand_a_i[31]}}, {2{operand_a_i[15]}}} & {4{((~imm_val_i[4] & ~width32) | signed_ops)}};
+      2'b01  : operand_negative = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]};
+      2'b10  : operand_negative = {4{operand_a_i[31]}};
+      default: operand_negative = {{2{operand_a_i[31]}}, {2{operand_a_i[15]}}};
     endcase
+  end
+
+  // Generate masks and clipped value
+  logic[31:0] clip_mask, residual_mask, clip_val;
+  always_comb begin
+    for (int unsigned i = 0; i < 32; i++) begin
+      assign residual_mask[i] = shift_mask[31-i];
+    end
+
+    assign clip_mask =  ~residual_mask;
+
+    for (int unsigned b = 0; b < 4; b++) begin
+      clip_val[8*b +: 8] = operand_a_i[8*b +: 8] & clip_mask[8*b +: 8] & {8{~(imm_val_i[4] & imm_instr & operand_negative[b])}}; 
+    end
   end
 
   // Detect if saturation is occuring
@@ -590,7 +597,7 @@ module ibex_alu_pext #(
   logic[4:0] clip_amt;
   
   assign clip_amt = {(width32 ? ~shift_amt_raw[4] : 1'b0), (width8 ? 1'b0 : ~shift_amt_raw[3]), ~shift_amt_raw[2:0]};
-  assign clrs_res = {(bit_cnt_result[27:24] < {1'b0, clip_amt[2:0]}), 
+  assign clrs_res = {(bit_cnt_result[27:24] < {1'b0, clip_amt[2:0]}),     // TODO use comparator for this...
                      (bit_cnt_result[20:16] < {1'b0, clip_amt[3:0]}),
                      (bit_cnt_result[11:8]  < {1'b0, clip_amt[2:0]}), 
                      (bit_cnt_result[5:0]   < {1'b0, clip_amt[4:0]}) };
@@ -606,7 +613,10 @@ module ibex_alu_pext #(
 
   // Generate the residual value
   logic[31:0] residual_val, residual_result;
-  assign residual_val = { {8{operand_negative[3]}}, {8{operand_negative[2]}}, {8{operand_negative[1]}}, {8{operand_negative[0]}}};
+  assign residual_val = { {8{operand_negative[3] & ~(imm_val_i[4] & imm_instr)}}, 
+                          {8{operand_negative[2] & ~(imm_val_i[4] & imm_instr)}}, 
+                          {8{operand_negative[1] & ~(imm_val_i[4] & imm_instr)}}, 
+                          {8{operand_negative[0] & ~(imm_val_i[4] & imm_instr)}}};
   assign residual_result = residual_val & residual_mask;
 
   // Gerenate the clipped value
@@ -627,7 +637,7 @@ module ibex_alu_pext #(
   // Prepare operand
   logic[3:0] negate;
   always_comb begin
-    unique case({signed_ops, width32, width8})
+    unique case({(signed_ops & ~(imm_val_i[4] & imm_instr)), width32, width8})
       3'b101 : negate = {~operand_a_i[31], ~operand_a_i[23], ~operand_a_i[15], ~operand_a_i[7]};
       3'b100 : negate = {{2{~operand_a_i[31]}}, {2{~operand_a_i[15]}}};
       3'b110 : negate = {{4{~operand_a_i[31]}}};
