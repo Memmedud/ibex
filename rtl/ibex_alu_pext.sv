@@ -580,17 +580,20 @@ module ibex_alu_pext #(
   always_comb begin
     unique case ({width32, width8})
       2'b01  : operand_negative = {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]} & {4{((~imm_val_i[4] & ~width32) | signed_ops)}};
-      2'b10  : operand_negative = {4{operand_a_i[31]}} & {4{((~imm_val_i[4] & ~width32) | signed_ops)}};
+      2'b10  : operand_negative = {4{operand_a_i[31]}} & {4{signed_ops}};
       default: operand_negative = {{2{operand_a_i[31]}}, {2{operand_a_i[15]}}} & {4{((~imm_val_i[4] & ~width32) | signed_ops)}};
     endcase
   end
 
   // Detect if saturation is occuring
   logic[3:0] clrs_res;
-  assign clrs_res = { (bit_cnt_result[27:24] <= {1'b0, ~shift_amt[2:0]}), 
-                      (bit_cnt_result[20:16] <= {1'b0, ~shift_amt[3:0]}),
-                      (bit_cnt_result[11:8]  <= {1'b0, ~shift_amt[2:0]}), 
-                      (bit_cnt_result[5:0]   <= {1'b0, ~shift_amt[4:0]}) };
+  logic[4:0] clip_amt;
+  
+  assign clip_amt = {(width32 ? ~shift_amt_raw[4] : 1'b0), (width8 ? 1'b0 : ~shift_amt_raw[3]), ~shift_amt_raw[2:0]};
+  assign clrs_res = {(bit_cnt_result[27:24] < {1'b0, clip_amt[2:0]}), 
+                     (bit_cnt_result[20:16] < {1'b0, clip_amt[3:0]}),
+                     (bit_cnt_result[11:8]  < {1'b0, clip_amt[2:0]}), 
+                     (bit_cnt_result[5:0]   < {1'b0, clip_amt[4:0]}) };
 
   logic[3:0] clip_saturation;
   always_comb begin
