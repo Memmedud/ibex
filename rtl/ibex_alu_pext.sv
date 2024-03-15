@@ -568,6 +568,9 @@ module ibex_alu_pext #(
   // CLIP //
   //////////
 
+  logic clip_signed;
+  assign clip_signed = (~imm_val_i[4] & ~width32) | (zpn_operator_i != ZPN_UCLIP32);
+
   // Detect if the operands are negative (all Clip ops are signed)
   logic[3:0] operand_negative;
   always_comb begin
@@ -588,7 +591,7 @@ module ibex_alu_pext #(
     assign clip_mask =  ~residual_mask;
 
     for (int unsigned b = 0; b < 4; b++) begin
-      clip_val[8*b +: 8] = operand_a_i[8*b +: 8] & clip_mask[8*b +: 8] & {8{~(imm_val_i[4] & imm_instr & operand_negative[b])}}; 
+      clip_val[8*b +: 8] = operand_a_i[8*b +: 8] & clip_mask[8*b +: 8] & {8{clip_signed}}; 
     end
   end
 
@@ -613,10 +616,10 @@ module ibex_alu_pext #(
 
   // Generate the residual value
   logic[31:0] residual_val, residual_result;
-  assign residual_val = { {8{operand_negative[3] & ~(imm_val_i[4] & imm_instr)}}, 
-                          {8{operand_negative[2] & ~(imm_val_i[4] & imm_instr)}}, 
-                          {8{operand_negative[1] & ~(imm_val_i[4] & imm_instr)}}, 
-                          {8{operand_negative[0] & ~(imm_val_i[4] & imm_instr)}}};
+  assign residual_val = { {8{operand_negative[3] & clip_signed}}, 
+                          {8{operand_negative[2] & clip_signed}}, 
+                          {8{operand_negative[1] & clip_signed}}, 
+                          {8{operand_negative[0] & clip_signed}}};
   assign residual_result = residual_val & residual_mask;
 
   // Gerenate the clipped value
@@ -637,7 +640,7 @@ module ibex_alu_pext #(
   // Prepare operand
   logic[3:0] negate;
   always_comb begin
-    unique case({(signed_ops & ~(imm_val_i[4] & imm_instr)), width32, width8})
+    unique case({(signed_ops & ~(imm_val_i[4] & imm_instr & ~width32)), width32, width8})
       3'b101 : negate = {~operand_a_i[31], ~operand_a_i[23], ~operand_a_i[15], ~operand_a_i[7]};
       3'b100 : negate = {{2{~operand_a_i[31]}}, {2{~operand_a_i[15]}}};
       3'b110 : negate = {{4{~operand_a_i[31]}}};
