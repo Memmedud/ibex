@@ -343,7 +343,7 @@ module ibex_alu_pext #(
   end
 
   // Calculate is_less
-  always_comb begin   // TODO: Support 32-bit cmp
+  always_comb begin
     is_byte_less = 4'b0000;
     
     for (int unsigned b = 0; b < 4; b++) begin
@@ -609,7 +609,7 @@ module ibex_alu_pext #(
   logic[3:0] negate;
   always_comb begin
     unique case({signed_ops, width32, width8})
-      3'b101 : negate = {~operand_a_i[31], ~operand_a_i[24], ~operand_a_i[15], ~operand_a_i[7]};
+      3'b101 : negate = {~operand_a_i[31], ~operand_a_i[23], ~operand_a_i[15], ~operand_a_i[7]};
       3'b100 : negate = {{2{~operand_a_i[31]}}, {2{~operand_a_i[15]}}};
       3'b110 : negate = {{4{~operand_a_i[31]}}};
       default: negate = 4'b1111;
@@ -617,20 +617,20 @@ module ibex_alu_pext #(
   end
 
   // Have to do this because Verilat0r is quirky, Im sorry... 
-  logic bc0, bc1, bc2, bc3, bc4, bc5, bc6, bc7, bc8, bc9, bc10, bc11, bc12, bc13, bc14, bc15,
-        bc16, bc17, bc18, bc19, bc20, bc21, bc22, bc23, bc24, bc25, bc26, bc27, bc28, bc29, bc30, bc31;
+  logic bc0,  bc1,  bc2,  bc3,  bc4,  bc5,  bc6,  bc7_raw,  bc8,  bc9,  bc10, bc11, bc12, bc13, bc14, bc15_raw,
+        bc16, bc17, bc18, bc19, bc20, bc21, bc22, bc23_raw, bc24, bc25, bc26, bc27, bc28, bc29, bc30, bc31_raw;
 
-  assign bc31 = negate[3] ? ~operand_a_i[31] : operand_a_i[31];
-  assign bc30 = negate[3] ? (~operand_a_i[30] & bc31) : (operand_a_i[30] & bc31);
+  assign bc31_raw = negate[3] ? ~operand_a_i[31] : operand_a_i[31];
+  assign bc30 = negate[3] ? (~operand_a_i[30] & bc31_raw) : (operand_a_i[30] & bc31_raw);
   assign bc29 = negate[3] ? (~operand_a_i[29] & bc30) : (operand_a_i[29] & bc30);
   assign bc28 = negate[3] ? (~operand_a_i[28] & bc29) : (operand_a_i[28] & bc29);
   assign bc27 = negate[3] ? (~operand_a_i[27] & bc28) : (operand_a_i[27] & bc28);
-  assign bc26 = negate[3] ? (~operand_a_i[27] & bc27) : (operand_a_i[27] & bc27);
+  assign bc26 = negate[3] ? (~operand_a_i[26] & bc27) : (operand_a_i[26] & bc27);
   assign bc25 = negate[3] ? (~operand_a_i[25] & bc26) : (operand_a_i[25] & bc26);
   assign bc24 = negate[3] ? (~operand_a_i[24] & bc25) : (operand_a_i[24] & bc25);
 
-  assign bc23 = width8 ? (negate[2] ? ~operand_a_i[23] : operand_a_i[23]) : (negate[2] ? (~operand_a_i[23] & bc24) : (operand_a_i[23] & bc24)); 
-  assign bc22 = negate[2] ? (~operand_a_i[22] & bc23) : (operand_a_i[22] & bc23);
+  assign bc23_raw = width8 ? (negate[2] ? ~operand_a_i[23] : operand_a_i[23]) : (negate[2] ? (~operand_a_i[23] & bc24) : (operand_a_i[23] & bc24)); 
+  assign bc22 = negate[2] ? (~operand_a_i[22] & bc23_raw) : (operand_a_i[22] & bc23_raw);
   assign bc21 = negate[2] ? (~operand_a_i[21] & bc22) : (operand_a_i[21] & bc22);
   assign bc20 = negate[2] ? (~operand_a_i[20] & bc21) : (operand_a_i[20] & bc21);
   assign bc19 = negate[2] ? (~operand_a_i[19] & bc20) : (operand_a_i[19] & bc20);
@@ -638,8 +638,8 @@ module ibex_alu_pext #(
   assign bc17 = negate[2] ? (~operand_a_i[17] & bc18) : (operand_a_i[17] & bc18);
   assign bc16 = negate[2] ? (~operand_a_i[16] & bc17) : (operand_a_i[16] & bc17);
 
-  assign bc15 = ~width32 ? (negate[1] ? ~operand_a_i[15] : operand_a_i[15]) : (negate[2] ? (~operand_a_i[15] & bc16) : (operand_a_i[15] & bc16));
-  assign bc14 = negate[1] ? (~operand_a_i[14] & bc15) : (operand_a_i[14] & bc15);
+  assign bc15_raw = ~width32 ? (negate[1] ? ~operand_a_i[15] : operand_a_i[15]) : (negate[2] ? (~operand_a_i[15] & bc16) : (operand_a_i[15] & bc16));
+  assign bc14 = negate[1] ? (~operand_a_i[14] & bc15_raw) : (operand_a_i[14] & bc15_raw);
   assign bc13 = negate[1] ? (~operand_a_i[13] & bc14) : (operand_a_i[13] & bc14);
   assign bc12 = negate[1] ? (~operand_a_i[12] & bc13) : (operand_a_i[12] & bc13);
   assign bc11 = negate[1] ? (~operand_a_i[11] & bc12) : (operand_a_i[11] & bc12);
@@ -647,18 +647,29 @@ module ibex_alu_pext #(
   assign bc9  = negate[1] ? (~operand_a_i[9] & bc10)  : (operand_a_i[9]  & bc10);
   assign bc8  = negate[1] ? (~operand_a_i[8] & bc9)   : (operand_a_i[8]  & bc9);
 
-  assign bc7  = width8 ? (negate[0] ? ~operand_a_i[7] : operand_a_i[7]) : (negate[0] ? (~operand_a_i[7] & bc8) : (operand_a_i[7] & bc8)); 
-  assign bc6  = negate[0] ? (~operand_a_i[6] & bc7)   : (operand_a_i[6] & bc7);
+  assign bc7_raw  = width8 ? (negate[0] ? ~operand_a_i[7] : operand_a_i[7]) : (negate[0] ? (~operand_a_i[7] & bc8) : (operand_a_i[7] & bc8)); 
+  assign bc6  = negate[0] ? (~operand_a_i[6] & bc7_raw)   : (operand_a_i[6] & bc7_raw);
   assign bc5  = negate[0] ? (~operand_a_i[5] & bc6)   : (operand_a_i[5] & bc6);
   assign bc4  = negate[0] ? (~operand_a_i[4] & bc5)   : (operand_a_i[4] & bc5);
   assign bc3  = negate[0] ? (~operand_a_i[3] & bc4)   : (operand_a_i[3] & bc4);
   assign bc2  = negate[0] ? (~operand_a_i[2] & bc3)   : (operand_a_i[2] & bc3);
   assign bc1  = negate[0] ? (~operand_a_i[1] & bc2)   : (operand_a_i[1] & bc2);
   assign bc0  = negate[0] ? (~operand_a_i[0] & bc1)   : (operand_a_i[0] & bc1);
-    
+
+  // MSB in bytes are a bit special
+  logic bc31, bc23, bc15, bc7;
+  logic clz;
+
+  assign clz  = (zpn_operator_i == ZPN_CLZ8) | (zpn_operator_i == ZPN_CLZ16) | (alu_operator_i == ALU_CLZ);
+  assign bc31 = clz & bc31_raw;
+  assign bc23 = bc23_raw & (~width8 | clz);
+  assign bc15 = bc15_raw & (width32 | clz);
+  assign bc7  = bc7_raw  & (~width8 | clz);
+  
+  // Concatinate operand
   logic[31:0]   bit_cnt_operand;
   assign bit_cnt_operand = {bc31, bc30, bc29, bc28, bc27, bc26, bc25, bc24, bc23, bc22, bc21, bc20, bc19, bc18, bc17, bc16, 
-                            bc15, bc14, bc13, bc12, bc11, bc10, bc9,  bc8,  bc7,  bc6,  bc5,  bc4,  bc3,  bc2,  bc1,  bc0};
+                            bc15, bc14, bc13, bc12, bc11, bc10, bc9,  bc8,  bc7 , bc6,  bc5,  bc4,  bc3,  bc2,  bc1,  bc0};
 
   // Bit counter is a 5-layer deep Brent-Kung Adder
   // First Adder layer
@@ -688,11 +699,12 @@ module ibex_alu_pext #(
   logic[31:0] bit_cnt_result_width32;
   assign bit_cnt_result_width32 = {26'h0, {1'b0, bit_cnt_fourth_layer[4:0]} + {1'b0, bit_cnt_fourth_layer[9:5]}};
 
-  // Concatinate partial results
+  // 8-bit count result
   logic[31:0] bit_cnt_result_width8, bit_cnt_result_width16;
-  assign bit_cnt_result_width8 = {4'h0, bit_cnt_third_layer[15:12], 4'h0, bit_cnt_third_layer[11:8], 
-                                  4'h0, bit_cnt_third_layer[7:4]  , 4'h0, bit_cnt_third_layer[3:0]  };
+  assign bit_cnt_result_width8  = {4'h0, bit_cnt_third_layer[15:12], 4'h0, bit_cnt_third_layer[11:8], 
+                                   4'h0, bit_cnt_third_layer[7:4]  , 4'h0, bit_cnt_third_layer[3:0]  };
 
+  // 16-bit count result
   assign bit_cnt_result_width16 = {11'h0, bit_cnt_fourth_layer[9:5], 11'h0, bit_cnt_fourth_layer[4:0] };
 
   // Bit-count result mux
