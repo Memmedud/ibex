@@ -569,7 +569,7 @@ module ibex_alu_pext #(
   //////////
 
   logic clip_signed;
-  assign clip_signed = (~imm_val_i[4] & ~width32) | (zpn_operator_i != ZPN_UCLIP32);
+  assign clip_signed = (~imm_val_i[4] & ~width32) | (zpn_operator_i == ZPN_SCLIP32);
 
   // Detect if the operands are negative (all Clip ops are signed)
   logic[3:0] operand_negative;
@@ -591,7 +591,7 @@ module ibex_alu_pext #(
     assign clip_mask =  ~residual_mask;
 
     for (int unsigned b = 0; b < 4; b++) begin
-      clip_val[8*b +: 8] = operand_a_i[8*b +: 8] & clip_mask[8*b +: 8] & {8{clip_signed}}; 
+      clip_val[8*b +: 8] = operand_a_i[8*b +: 8] & clip_mask[8*b +: 8] & {8{~operand_negative[b] | clip_signed}}; 
     end
   end
 
