@@ -436,6 +436,7 @@ module ibex_id_stage #(
   // Decoder //
   /////////////
 
+  logic alu_mult_sel, alu_mult_en;
   ibex_decoder #(
     .RV32E          (RV32E),
     .RV32M          (RV32M),
@@ -493,9 +494,9 @@ module ibex_id_stage #(
     .alu_multicycle_o  (alu_multicycle_dec),
 
     // MULT & DIV
-    .mult_en_o            (mult_en_dec),
+    .mult_en_o            (alu_mult_en),
     .div_en_o             (div_en_dec),
-    .mult_sel_o           (mult_sel_ex_o),
+    .mult_sel_o           (alu_mult_sel),
     .div_sel_o            (div_sel_ex_o),
     .multdiv_operator_o   (multdiv_operator),
     .multdiv_signed_mode_o(multdiv_signed_mode),
@@ -517,19 +518,27 @@ module ibex_id_stage #(
 
   if (RV32P == RV32PZpn) begin
 
+    logic zpn_mult_sel;
     ibex_decoder_pext decoder_pext_i (
       .instr_rdata_i        (instr_rdata_i),
       .zpn_operator_o       (zpn_operator_ex_o),
-      .zpn_illegal_insn_o   (),     // TODO
-      .imm_operand_o        (zpn_imm_val_o)
+      .zpn_illegal_insn_o   (),     
+      .imm_operand_o        (zpn_imm_val_o),
+      .zpn_mult_sel_o       (zpn_mult_sel)
     );
+
+    // TODO: Make sure this works properly
+    assign mult_sel_ex_o = (alu_operator == ZPN_INSTR) ? zpn_mult_sel : alu_mult_sel;
+    assign mult_en_dec   = (alu_operator == ZPN_INSTR) ? zpn_mult_sel : alu_mult_en;    
 
   end
   else begin
 
-    assign zpn_operator_ex_o  = '0;
-    //assign zpn_illegal_insn_o = 1'b0; // TODO
-    assign zpn_imm_val_o      = 1'b0;
+    assign zpn_operator_ex_o  = ibex_pkg_pext::ZPN_RADD16;
+    assign zpn_imm_val_o      = 5'b0_0000;
+
+    assign mult_sel_ex_o      = alu_mult_sel;
+    assign mult_en_dec        = alu_mult_en;
 
   end
 

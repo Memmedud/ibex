@@ -11,12 +11,14 @@ module ibex_mult_pext (
   input  logic                      clk_i,
   input  logic                      rst_ni,
 
+  input  logic                      multdiv_en_i,
   input  logic                      mult_en_i,
   input  logic                      div_en_i,
   input  logic                      mult_sel_i,
   input  logic                      div_sel_i,
 
   input  ibex_pkg_pext::zpn_op_e    zpn_operator_i,
+  input  logic                      zpn_instr_i,
   input  ibex_pkg::alu_op_e         alu_operator_i,
   input  logic[1:0]                 signed_mode_i,
   input  ibex_pkg::md_op_e          md_operator_i,
@@ -46,19 +48,15 @@ module ibex_mult_pext (
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
 
-  // Common signals and logic
-  logic multdiv_en;
-  assign multdiv_en = mult_en_i | div_en_internal;
-
-  logic unused_mult_sel_i;
-  assign unused_mult_sel_i = mult_sel_i; 
-
   // Intermediate value register
   logic[1:0] imd_val_we_div, imd_val_we_mult;
   assign imd_val_we_o = div_sel_i ? imd_val_we_div : imd_val_we_mult;
   assign imd_val_d_o[0] = div_sel_i ? op_remainder_d : imd_val_d_mult[0];
   assign imd_val_d_o[1] = div_sel_i ? {2'b0, op_denominator_d} : imd_val_d_mult[1];
 
+  // Assign unused variable
+  logic unused_mult_en_i;
+  assign unused_mult_en_i = mult_en_i;
 
   ////////////////////
   // Decoder helper //
@@ -110,9 +108,9 @@ module ibex_mult_pext (
   end
 
   // All mults are signed except for UMAQA and SMAQA.su
-  logic[1:0] zpn_signed_mult;//, signed_mult;
+  logic[1:0] zpn_signed_mult, signed_mult;
   assign zpn_signed_mult = {~(zpn_operator_i == ZPN_UMAQA), ~((zpn_operator_i == ZPN_UMAQA) | (zpn_operator_i == ZPN_SMAQAsu))};
-  //assign signed_mult = z  // TODO: Choose signed/unsigned for non-zpn
+  assign signed_mult = zpn_instr_i ? zpn_signed_mult : {signed_mode_i[0], signed_mode_i[1]};
   
   //logic sign_extend;    // TODO
   //assign sign_extend = (~((mult_state == LOWER) & cycle_count[0])) | (md_operator_i == MD_OP_MULH);
@@ -160,23 +158,23 @@ module ibex_mult_pext (
   always_comb begin
     unique case(mult_mode)
       M8x8  : begin
-        op_a_signs = {mult_ker1_op_a1[7], mult_ker1_op_a0[7], mult_ker0_op_a1[7], mult_ker0_op_a0[7]} & {4{zpn_signed_mult[1]}};
-        op_b_signs = {mult_ker1_op_b1[7], mult_ker1_op_b0[7], mult_ker0_op_b1[7], mult_ker0_op_b0[7]} & {4{zpn_signed_mult[0]}};
+        op_a_signs = {mult_ker1_op_a1[7], mult_ker1_op_a0[7], mult_ker0_op_a1[7], mult_ker0_op_a0[7]} & {4{signed_mult[1]}};
+        op_b_signs = {mult_ker1_op_b1[7], mult_ker1_op_b0[7], mult_ker0_op_b1[7], mult_ker0_op_b0[7]} & {4{signed_mult[0]}};
       end
 
       M16x16: begin
-        op_a_signs = {mult_ker1_op_a1[7], 1'b0, mult_ker0_op_a1[7], 1'b0} & {4{zpn_signed_mult[1]}};
-        op_b_signs = {mult_ker1_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}};
+        op_a_signs = {mult_ker1_op_a1[7], 1'b0, mult_ker0_op_a1[7], 1'b0} & {4{signed_mult[1]}};
+        op_b_signs = {mult_ker1_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{signed_mult[0]}};
       end
 
       M32x16: begin
-        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[1]}};
-        op_b_signs = {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}};
+        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{signed_mult[1]}};
+        op_b_signs = {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{signed_mult[0]}};
       end
 
       M32x32: begin
-        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{zpn_signed_mult[1]}};
-        op_b_signs = (mult_state == UPPER) ? {mult_ker1_op_b1[7], 1'b0, mult_ker1_op_b1[7], 1'b0} & {4{zpn_signed_mult[0]}} : 4'b0000;
+        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{signed_mult[1]}};
+        op_b_signs = (mult_state == UPPER) ? {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{signed_mult[0]}} : 4'b0000;
       end
     endcase
   end
@@ -271,9 +269,9 @@ module ibex_mult_pext (
         sum_op_b_32x16 = ~{sum_ker1[23:0], mult_ker1_sum00[7:0]};
       end
     end 
-    else begin
+    else begin    // TODO
       if (narrow_ops) begin
-        sum_op_a_32x16 = {sum_ker0[23:0], mult_ker0_sum00[7:0]};
+        sum_op_a_32x16 = {8'h00, sum_ker0[23:0]};
         sum_op_b_32x16 = 32'h0;
       end
       else begin
@@ -292,10 +290,12 @@ module ibex_mult_pext (
   /////////////////////////
   logic[47:0] sum_op_a_32x32, sum_op_b_32x32;
   logic[48:0] sum_total_32x32;
-  logic[15:0] unused_sum_total_32x32;
+  logic[16:0] unused_sum_total_32x32;
   logic       mult_LSW;
 
-  assign mult_LSW = (md_operator_i == MD_OP_MULL);
+  assign mult_LSW = (md_operator_i == MD_OP_MULL)   | 
+                    (zpn_operator_i == ZPN_MADDR32) |
+                    (zpn_operator_i == ZPN_MSUBR32);
 
   always_comb begin
     if (add_mode[1]) begin
@@ -315,7 +315,7 @@ module ibex_mult_pext (
   end
 
   assign sum_total_32x32 = $signed(sum_op_a_32x32) + $signed(sum_op_b_32x32) + {31'h0, accum_sub[1], 16'h0};
-  assign unused_sum_total_32x32 = sum_total_32x32[15:0];
+  assign unused_sum_total_32x32 = {sum_total_32x32[48], sum_total_32x32[15:0]};
 
 
   ////////////////
@@ -340,7 +340,7 @@ module ibex_mult_pext (
       M32x16: saturated = 4'b0000;
     endcase
 
-    set_ov_o = (|saturated) & mult_en_i;
+    set_ov_o = (|saturated) & mult_sel_i;
   end
   
 
@@ -393,16 +393,19 @@ module ibex_mult_pext (
                                               saturated[0] ? 8'h7f : mult_sum_8x8_0};
 
           ZPN_SMAQA, ZPN_SMAQAsu,
-          ZPN_UMAQA: mult_result = sum_total_32x16[31:0]; 
+          ZPN_UMAQA: mult_result = sum_total_32x32[47:16]; 
 
           // 16x16 ops ////
           ZPN_KHM16, ZPN_KHMX16: mult_result = {(saturated[3] & saturated[2]) ? 16'h7fff : mult_sum_16x16_1[30:15],
                                                 (saturated[1] & saturated[0]) ? 16'h7fff : mult_sum_16x16_0[30:15]};
 
-          ZPN_SMBB16,   ZPN_SMBT16,
-          ZPN_KDMBB,    ZPN_KDMBT: mult_result = mult_sum_16x16_0;
+          ZPN_SMBB16,   ZPN_SMBT16: mult_result = mult_sum_16x16_0;
 
-          ZPN_SMTT16,   ZPN_KDMTT: mult_result = mult_sum_16x16_1;
+          ZPN_KDMBB,    ZPN_KDMBT: mult_result = {mult_sum_16x16_0[30:0], 1'b1};  // TODO: Add saturation as well
+
+          ZPN_SMTT16: mult_result = mult_sum_16x16_1;
+          
+          ZPN_KDMTT: mult_result = {mult_sum_16x16_1[30:0], 1'b0};    // TODO: Add saturation as well
 
           ZPN_KMDA,     ZPN_KMXDA,
           ZPN_SMDS,     ZPN_SMDRS,    
@@ -413,11 +416,11 @@ module ibex_mult_pext (
           ZPN_KMAXDS,   ZPN_KMSDA,
           ZPN_KMSXDA: mult_result = sum_total_32x32[47:16];
 
-          // TODO
-          ZPN_KHMBB,    ZPN_KHMBT: mult_result = {16'h0, mult_sum_16x16_0[30:15]};
+          ZPN_KHMBB,    ZPN_KHMBT: mult_result = {15'h0, mult_sum_16x16_0[31:15]};    // TODO Add saturation
           
-          ZPN_KHMTT: mult_result = {16'h0, mult_sum_16x16_1[30:15]};
+          ZPN_KHMTT: mult_result = {15'h0, mult_sum_16x16_1[31:15]};
 
+          // TODO
           ZPN_KDMABB,   ZPN_KDMABT,  ZPN_KDMATT: mult_result = '0; // !!!!
 
           // 32x16 ops ////
@@ -463,7 +466,7 @@ module ibex_mult_pext (
       mult_state <= LOWER;
     end
     else begin
-      if (mult_en_i & fsm_en) begin
+      if (mult_sel_i & fsm_en) begin
         mult_state <= mult_state_next;
       end
     end
@@ -481,15 +484,15 @@ module ibex_mult_pext (
     unique case (mult_state)
       LOWER: begin
         mult_valid = ~cycle_count[0];
-        imd_val_we_mult = {2{cycle_count[0]}} & {2{mult_en_i}};
+        imd_val_we_mult = {2{cycle_count[0]}} & {2{mult_sel_i}};
         fsm_en = 1'b1;
 
         mult_state_next = cycle_count[0] ? UPPER: LOWER;
       end
 
       UPPER: begin
-        mult_valid = ~cycle_count[1] & cycle_count[0];
-        imd_val_we_mult = (accum_en ? 2'b01 : 2'b00) & {2{mult_en_i}};
+        mult_valid = ~cycle_count[1];
+        imd_val_we_mult = (accum_en ? 2'b01 : 2'b00) & {2{mult_sel_i}};
         fsm_en = accum_en | multdiv_ready_id_i;
 
         mult_state_next = cycle_count[1] ? ACCUM : LOWER;
@@ -559,7 +562,7 @@ module ibex_mult_pext (
     end
   end
 
-  assign imd_val_we_div[0] = multdiv_en;
+  assign imd_val_we_div[0] = multdiv_en_i;
   assign imd_val_we_div[1] = div_en_internal;
   assign op_denominator_q = imd_val_q_i[1][31:0];
 

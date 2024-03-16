@@ -6,14 +6,13 @@
 /*
  * P-ext instruction decoder
  */
-module ibex_decoder_pext #(
-  
-) (
+module ibex_decoder_pext (
   input  logic[31:0]                instr_rdata_i,
 
   output ibex_pkg_pext::zpn_op_e    zpn_operator_o,
   output logic                      zpn_illegal_insn_o,
-  output logic[4:0]                 imm_operand_o
+  output logic[4:0]                 imm_operand_o,
+  output logic                      zpn_mult_sel_o 
 ); 
   import ibex_pkg_pext::*;
 
@@ -132,7 +131,7 @@ module ibex_decoder_pext #(
           7'b011_1001: zpn_operator_o = ZPN_SRLI16;
           7'b010_1010: zpn_operator_o = ZPN_SLL16;
           7'b011_0010: zpn_operator_o = ZPN_KSLL16;
-          7'b011_1010: zpn_operator_o = ZPN_SLLI16; // NOTE: Rounding is determined in immediate value...
+          7'b011_1010: zpn_operator_o = ZPN_SLLI16;
           7'b010_1011: zpn_operator_o = ZPN_KSLRA16; 
           7'b011_0011: zpn_operator_o = ZPN_KSLRA16u; 
       
@@ -145,7 +144,7 @@ module ibex_decoder_pext #(
           7'b011_1101: zpn_operator_o = ZPN_SRLI8;
           7'b010_1110: zpn_operator_o = ZPN_SLL8;
           7'b011_0110: zpn_operator_o = ZPN_KSLL8;
-          7'b011_1110: zpn_operator_o = ZPN_SLLI8; // NOTE: Rounding is determined in immediate value...
+          7'b011_1110: zpn_operator_o = ZPN_SLLI8;
           7'b010_1111: zpn_operator_o = ZPN_KSLRA8; 
           7'b011_0111: zpn_operator_o = ZPN_KSLRA8u; 
 
@@ -339,5 +338,45 @@ module ibex_decoder_pext #(
 
   // Not all bits of instruction are used
   logic[16:0] unused_bits = {instr[19:15], instr[11:0]};
+
+  // Decode zpn-mult_sel
+  // Note: This is only decoding multi-cycle 
+  //       mults to reduce complexity
+  always_comb begin
+    unique case (zpn_operator_o)
+      // 16x16      // 32x16      // 8x8        // 32x32                   
+      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,
+      ZPN_SMBT16,   ZPN_SMMWBu,   ZPN_UMAQA,    ZPN_SMMULu,
+      ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu,  ZPN_KMMAC,
+      ZPN_KMDA,     ZPN_SMMWTu,   ZPN_KHM8,     ZPN_KMMACu,
+      ZPN_KMXDA,    ZPN_KWMMUL,   ZPN_KHMX8,    ZPN_KMMSB,
+      ZPN_SMDS,     ZPN_KWMMULu,                ZPN_KMMSBu,
+      ZPN_SMDRS,    ZPN_KMMWB2,                 ZPN_MADDR32,
+      ZPN_SMXDS,    ZPN_KMMWB2u,                ZPN_MSUBR32,
+      ZPN_KMABB,    ZPN_KMMWT2,
+      ZPN_KMABT,    ZPN_KMMWT2u,
+      ZPN_KMATT,    ZPN_KMMAWB,
+      ZPN_KMADA,    ZPN_KMMAWBu,
+      ZPN_KMAXDA,   ZPN_KMMAWT,
+      ZPN_KMADS,    ZPN_KMMAWTu,
+      ZPN_KMADRS,   ZPN_KMMAWB2,
+      ZPN_KMAXDS,   ZPN_KMMAWB2u,
+      ZPN_KMSDA,    ZPN_KMMAWT2,
+      ZPN_KMSXDA,   ZPN_KMMAWT2u,
+      ZPN_KHMBB,
+      ZPN_KHMBT,
+      ZPN_KHMTT,
+      ZPN_KDMBB,
+      ZPN_KDMBT,
+      ZPN_KDMTT,
+      ZPN_KDMABB,
+      ZPN_KDMABT,
+      ZPN_KDMATT,
+      ZPN_KHM16,
+      ZPN_KHMX16: zpn_mult_sel_o = 1'b1;
+
+      default: zpn_mult_sel_o = 1'b0;
+    endcase
+  end
 
 endmodule

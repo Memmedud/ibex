@@ -62,6 +62,7 @@ module ibex_ex_block #(
 );
 
   import ibex_pkg::*;
+  import ibex_pkg_pext::*;
 
   logic [31:0] alu_result;
 
@@ -74,7 +75,7 @@ module ibex_ex_block #(
   At synthesis time, all the combinational and sequential logic
   from the multdiv_i module are eliminated
   */
-  if (RV32M != RV32MNone) begin : gen_multdiv_m
+  if (RV32M != RV32MNone || RV32P == RV32PZpn) begin : gen_multdiv_m
     assign multdiv_sel = mult_sel_i | div_sel_i;
   end else begin : gen_multdiv_no_m
     assign multdiv_sel = 1'b0;
@@ -125,6 +126,8 @@ module ibex_ex_block #(
     
     assign alu_imd_val_q    = '{imd_val_q_i[0][31:0], imd_val_q_i[1][31:0]};
     assign result_ex_o      = multdiv_sel ? multdiv_result : alu_result;
+
+    assign vxsat_set_o      = 1'b0;
     
     ibex_alu #(
       .RV32B(RV32B)
@@ -145,8 +148,6 @@ module ibex_ex_block #(
       .comparison_result_o(alu_cmp_result),
       .is_equal_result_o  (alu_is_equal_result)
     );
-
-    assign vxsat_set_o = 1'b0;
 
     if (RV32M == RV32MSlow) begin : gen_multdiv_slow
       ibex_multdiv_slow multdiv_i (
@@ -204,6 +205,15 @@ module ibex_ex_block #(
       );
 
     end
+
+    // Zpn signals are only used in Pext-mode
+    logic [31:0]              unused_alu_operand_rd;
+    logic [4:0]               unused_zpn_imm_val;
+    ibex_pkg_pext::zpn_op_e   unused_zpn_operator;
+    assign unused_alu_operand_rd  = alu_operand_rd_i;
+    assign unused_zpn_imm_val     = zpn_imm_val_i;
+    assign unused_zpn_operator    = zpn_operator_i;
+
   end
   else begin : gen_pext_alu
 
@@ -236,15 +246,10 @@ module ibex_ex_block #(
       .set_ov_o             (vxsat_set_o),
       .comparison_result_o  (alu_cmp_result)
     );
-
-    // Assign unused signals when using Pext
-    logic[0:0] unused_signals_pext;
-    assign unused_signals_pext = {alu_instr_first_cycle_i};
     
     // The multdiv operands are not used in Pext-mode
-    logic[63:0] unused_operands;
-    assign unused_operands = {multdiv_operand_a_i, multdiv_operand_b_i};
-
+    logic[64:0] unused_operands;
+    assign unused_operands = {alu_instr_first_cycle_i, multdiv_operand_a_i, multdiv_operand_b_i};
 
   end
 

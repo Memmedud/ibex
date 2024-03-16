@@ -108,6 +108,7 @@
           ZPN_SMXDS: add_mode_o = 2'b01;
 
           // rd + sum only
+          ZPN_SMAQA,    ZPN_SMAQAsu,  ZPN_UMAQA,
           ZPN_KMMAWB,   ZPN_KMMAWBu,
           ZPN_KMMAWT,   ZPN_KMMAWTu,
           ZPN_KMMAWB2,  ZPN_KMMAWB2u,

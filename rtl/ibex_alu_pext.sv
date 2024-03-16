@@ -24,7 +24,7 @@ module ibex_alu_pext #(
   input  ibex_pkg::md_op_e              multdiv_operator_i,
 
   input  logic                          multdiv_sel_i,
-  input  logic                          mult_en_i,      // TODO: Make sure this is set for zpn mults as well
+  input  logic                          mult_en_i,
   input  logic                          div_en_i,
   input  logic                          mult_sel_i,
   input  logic                          div_sel_i,
@@ -57,7 +57,8 @@ module ibex_alu_pext #(
   // Decoder helper //
   ////////////////////
   logic[1:0] sub;
-  logic zpn_instr, imm_instr, width32, width8, signed_ops, comp_signed;
+  logic zpn_instr, imm_instr, width32, width8, signed_ops, 
+        comp_signed;
   
   ibex_alu_pext_helper alu_pext_helper (
     .zpn_operator_i     (zpn_operator_i),
@@ -110,9 +111,7 @@ module ibex_alu_pext #(
   logic rounding;
   always_comb begin
     unique case (zpn_operator_i)
-      ZPN_AVE/*,
-      ZPN_SCLIP16,  ZPN_SCLIP8,
-      ZPN_SCLIP32,  ZPN_UCLIP32*/: rounding = zpn_instr;
+      ZPN_AVE: rounding = zpn_instr;
 
       default: rounding = 1'b0;
     endcase
@@ -145,16 +144,21 @@ module ibex_alu_pext #(
 
   // Actual adder
   logic[9:0]  adder_result0, adder_result1, adder_result2, adder_result3;
+  logic[3:0]  unused_adder_result;
+  //logic  unused_adder_result;
   logic       carry_out0, carry_out1, carry_out2;
 
-  assign adder_result0 = $signed({signed_ops & add_in_a0[7], add_in_a0}) + $signed({signed_ops & add_in_b0[7], add_in_b0}) + {8'h00, (sub32 | rounding)};
-  assign adder_result1 = $signed({signed_ops & add_in_a1[7], add_in_a1}) + $signed({signed_ops & add_in_b1[7], add_in_b1}) + {8'h00, (sub8  | carry_out0)};
-  assign adder_result2 = $signed({signed_ops & add_in_a2[7], add_in_a2}) + $signed({signed_ops & add_in_b2[7], add_in_b2}) + {8'h00, (sub16 | carry_out1)};
+  assign adder_result0 = $signed({signed_ops & add_in_a0[7] & width8, add_in_a0}) + $signed({signed_ops & add_in_b0[7] & width8, add_in_b0}) + {8'h00, (sub32 | rounding)};
+  assign adder_result1 = $signed({signed_ops & add_in_a1[7] & ~width32, add_in_a1}) + $signed({signed_ops & add_in_b1[7] & ~width32, add_in_b1}) + {8'h00, (sub8  | carry_out0)};
+  assign adder_result2 = $signed({signed_ops & add_in_a2[7] & width8, add_in_a2}) + $signed({signed_ops & add_in_b2[7] & width8, add_in_b2}) + {8'h00, (sub16 | carry_out1)};
   assign adder_result3 = $signed({signed_ops & add_in_a3[7], add_in_a3}) + $signed({signed_ops & add_in_b3[7], add_in_b3}) + {8'h00, (sub8  | carry_out2)};
 
   assign carry_out0 = ~width8  & adder_result0[8];
   assign carry_out1 =  width32 & adder_result1[8];
   assign carry_out2 = ~width8  & adder_result2[8];
+
+  assign unused_adder_result = {adder_result3[9], adder_result2[9], adder_result1[9], adder_result0[9]};
+  //assign unused_adder_result = adder_result3[9];
 
   // Concatinate the regular output
   logic[31:0] normal_result;
@@ -243,7 +247,7 @@ module ibex_alu_pext #(
           ZPN_KSUB16,   ZPN_KSUB8: adder_result = saturating_result;
 
           ZPN_KADDH,    ZPN_UKADDH,
-          ZPN_KSUBH,    ZPN_UKSUBH: adder_result = {{16{signed_ops & saturating_result[15]}}, saturating_result[15:0]};
+          ZPN_KSUBH,    ZPN_UKSUBH: adder_result = {{16{saturating_result[16]}}, saturating_result[15:0]};
 
           default: adder_result = normal_result;
         endcase 
@@ -267,11 +271,13 @@ module ibex_alu_pext #(
   ibex_mult_pext mult_pext_i (
     .clk_i                (clk_i),
     .rst_ni               (rst_ni),
+    .multdiv_en_i         (multdiv_sel_i),
     .mult_en_i            (mult_en_i),
     .div_en_i             (div_en_i),
     .mult_sel_i           (mult_sel_i),
     .div_sel_i            (div_sel_i),
     .zpn_operator_i       (zpn_operator_i),
+    .zpn_instr_i          (zpn_instr),
     .alu_operator_i       (alu_operator_i),
     .signed_mode_i        (signed_mode_i),
     .md_operator_i        (multdiv_operator_i),
@@ -296,8 +302,8 @@ module ibex_alu_pext #(
   ////////////////
   // Comparison //
   ////////////////
-  logic[3:0]    is_byte_equal, is_equal;   // One bit for each byte
-  logic[3:0]    is_byte_less,  is_less;    // handles both signed and unsigned forms
+  logic[3:0]    is_byte_equal, is_equal,   // One bit for each byte
+                is_byte_less,  is_less;    // handles both signed and unsigned forms
 
   // calculate is_equal
   always_comb begin
@@ -319,8 +325,6 @@ module ibex_alu_pext #(
 
   // Calculate is_less
   always_comb begin
-    is_byte_less = 4'b0000;
-    
     for (int unsigned b = 0; b < 4; b++) begin
       if ((operand_a_i[8*b+7] ^ operand_b_i[8*b+7]) == 1'b0) begin
         is_byte_less[b] = (adder_result[8*b+7] == 1'b1);
@@ -332,9 +336,7 @@ module ibex_alu_pext #(
 
     unique case ({width32, width8})
       2'b10  : is_less = {4{is_byte_less[3]}};
-
       2'b01  : is_less = is_byte_less;
-
       default: is_less = {{2{is_byte_less[3]}}, {2{is_byte_less[1]}}};
     endcase
   end
@@ -385,7 +387,7 @@ module ibex_alu_pext #(
   assign comp_result = { {8{comp_result_packed[3]}},
                          {8{comp_result_packed[2]}},
                          {8{comp_result_packed[1]}},
-                         {8{comp_result_packed[0]}} };    //TODO Make to for loop
+                         {8{comp_result_packed[0]}} };
 
   assign comparison_result_o = ~zpn_instr & comp_result_packed[0];
 
@@ -411,7 +413,6 @@ module ibex_alu_pext #(
 
   always_comb begin
     abs_overflow_val = {1'b1, 7'h00, width8, 7'h00, ~width32, 7'h00, width8, 7'h00};
-
 
     for (int unsigned b = 0; b < 4; b++) begin
       abs_overflow_byte[b] = (operand_a_i[8*b +: 8] == abs_overflow_val[8*b +: 8]);
@@ -444,7 +445,7 @@ module ibex_alu_pext #(
   // Bit-shifts //
   ////////////////
 
-  // Generate shift mask with inverse, reverse thermometer coding (only 16-bit since we will only need it for halfword and byte)
+  // Generate shift mask with inverse, reverse thermometer coding
   // Will use this mask for both Shift and clip instructions
   // Ex: shift_amt=4 -> mask = 0000_1111_1111_1111
 
@@ -484,7 +485,7 @@ module ibex_alu_pext #(
     endcase
 
     unique case ({width32, width8})
-      2'b10  : shift_signed_bytes = shift_signed ? {4{shift_operand[31]}} : 4'b0000;   // 32-bit is handled internally in shifter
+      2'b10  : shift_signed_bytes = shift_signed ? {4{shift_operand[31]}} : 4'b0000;
       2'b01  : shift_signed_bytes = shift_signed ? {shift_operand[31], shift_operand[23], shift_operand[15], shift_operand[7]} : 4'b0000;
       default: shift_signed_bytes = shift_signed ? {{2{shift_operand[31]}}, {2{shift_operand[15]}}} : 4'b0000;
     endcase
@@ -668,7 +669,7 @@ module ibex_alu_pext #(
   logic clz;
 
   assign clz  = (zpn_operator_i == ZPN_CLZ8) | (zpn_operator_i == ZPN_CLZ16) | (alu_operator_i == ALU_CLZ);
-  assign bc31 = clz & bc31_raw;
+  assign bc31 = bc31_raw &  clz;
   assign bc23 = bc23_raw & (~width8 | clz);
   assign bc15 = bc15_raw & (width32 | clz);
   assign bc7  = bc7_raw  & (~width8 | clz);
@@ -706,13 +707,13 @@ module ibex_alu_pext #(
   logic[31:0] bit_cnt_result_width32;
   assign bit_cnt_result_width32 = {26'h0, {1'b0, bit_cnt_fourth_layer[4:0]} + {1'b0, bit_cnt_fourth_layer[9:5]}};
 
+  // 16-bit count result
+  assign bit_cnt_result_width16 = {11'h0, bit_cnt_fourth_layer[9:5], 11'h0, bit_cnt_fourth_layer[4:0] };
+  
   // 8-bit count result
   logic[31:0] bit_cnt_result_width8, bit_cnt_result_width16;
   assign bit_cnt_result_width8  = {4'h0, bit_cnt_third_layer[15:12], 4'h0, bit_cnt_third_layer[11:8], 
                                    4'h0, bit_cnt_third_layer[7:4]  , 4'h0, bit_cnt_third_layer[3:0]  };
-
-  // 16-bit count result
-  assign bit_cnt_result_width16 = {11'h0, bit_cnt_fourth_layer[9:5], 11'h0, bit_cnt_fourth_layer[4:0] };
 
   // Bit-count result mux
   logic[31:0] bit_cnt_result;

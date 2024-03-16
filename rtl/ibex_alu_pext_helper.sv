@@ -92,7 +92,6 @@ module ibex_alu_pext_helper (
           ZPN_SCMPLT16, ZPN_SCMPLE16,
           ZPN_CMPEQ16,  ZPN_SRA16,
           ZPN_SRA16u,   ZPN_SRAI16,
-          ZPN_KSLRA16,  ZPN_KSLRA16u,
           ZPN_SMIN16,   ZPN_SMAX16,
           ZPN_SCLIP16,  ZPN_KABS16,
           ZPN_CLRS16: begin
@@ -103,27 +102,6 @@ module ibex_alu_pext_helper (
 
           end
 
-          // Unsigned 16-bit
-          ZPN_URADD16,  ZPN_UKADD16,
-          ZPN_URSUB16,  ZPN_UKSUB16,
-          ZPN_UKADDH,   ZPN_UKSUBH,
-          ZPN_URCRAS16, ZPN_URCRSA16,
-          ZPN_UKCRAS16, ZPN_UKCRSA16,
-          ZPN_URSTAS16, ZPN_URSTSA16,
-          ZPN_UKSTAS16, ZPN_UKSTSA16,
-          ZPN_UCMPLT16, ZPN_UCMPLE16,
-          ZPN_SRL16,    ZPN_SRL16u,
-          ZPN_SRLI16,   ZPN_SLL16,
-          ZPN_KSLL16,   ZPN_SLLI16,
-          ZPN_UMIN16,   ZPN_UMAX16,
-          ZPN_CLZ16: begin
-
-            width32_o    = 1'b0;
-            width8_o     = 1'b0;
-            signed_ops_o = 1'b0;
-
-          end
-
           // Signed 8-bit
           ZPN_RADD8,   ZPN_KADD8,
           ZPN_ADD8,    ZPN_RSUB8,
@@ -131,7 +109,6 @@ module ibex_alu_pext_helper (
           ZPN_SCMPLT8, ZPN_SCMPLE8,
           ZPN_CMPEQ8,  ZPN_SRA8,
           ZPN_SRA8u,   ZPN_SRAI8,
-          ZPN_KSLRA8,  ZPN_KSLRA8u,
           ZPN_SMIN8,   ZPN_SMAX8,
           ZPN_SCLIP8,  ZPN_KABS8,
           ZPN_CLRS8: begin
@@ -158,6 +135,7 @@ module ibex_alu_pext_helper (
 
           end
 
+          // Unsigned 16-bit
           default: begin
 
             width32_o    = 1'b0;
@@ -169,9 +147,11 @@ module ibex_alu_pext_helper (
       end
 
       default: begin
+
         width32_o    = 1'b1;
         width8_o     = 1'b0;
         signed_ops_o = 1'b0;
+
       end
     endcase
 

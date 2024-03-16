@@ -560,10 +560,9 @@ module ibex_decoder #(
       end
 
       OPCODE_P: begin
-        // TODO: Add proper detection of illegal instructions
-        rf_ren_a_o      = 1'b1;
-        rf_ren_b_o      = 1'b1;
-        rf_we           = 1'b1;
+        rf_ren_a_o = 1'b1;
+        rf_ren_b_o = 1'b1;
+        rf_we      = 1'b1;
         
         illegal_insn = (RV32P == RV32PNone) ? 1'b1 : 1'b0;
       end
@@ -1146,7 +1145,6 @@ module ibex_decoder #(
       /////////////
       // P-ext   //
       /////////////
-      // TODO: Add shortcut for Pext alu for hopefully shorter critical path...
       OPCODE_P: begin
         alu_op_a_mux_sel_o = OP_A_REG_A;
         alu_op_b_mux_sel_o = OP_B_REG_B;
