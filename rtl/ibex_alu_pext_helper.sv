@@ -17,8 +17,10 @@ module ibex_alu_pext_helper (
   output logic                    width8_o,
   output logic                    signed_ops_o,
   output logic                    comp_signed_o,
-  output logic[1:0]               alu_sub_o
-  //output logic                    crossed_o
+  output logic[1:0]               alu_sub_o,
+  output logic                    crossed_o,
+  output logic                    adder_sat_o,
+  output logic                    rounding_o
 );
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
@@ -26,6 +28,7 @@ module ibex_alu_pext_helper (
   logic zpn_instr;
   assign zpn_instr   = (alu_operator_i == ZPN_INSTR);
   assign zpn_instr_o = zpn_instr; 
+
 
   ///////////////////////
   // Immediate decoder //
@@ -37,11 +40,25 @@ module ibex_alu_pext_helper (
       ZPN_SRLI16,   ZPN_SRLI8,
       ZPN_SLLI16,   ZPN_SLLI8,
       ZPN_KSLLIW,   ZPN_SRAIu,
+      ZPN_KSLLI16,  ZPN_KSLLI8,
       // Clip ops
       ZPN_SCLIP16,  ZPN_SCLIP8,  
       ZPN_SCLIP32,  ZPN_UCLIP32: imm_instr_o = zpn_instr;
 
       default: imm_instr_o = 1'b0;
+    endcase
+  end
+
+
+  //////////////////////
+  // Rounding decoder //
+  //////////////////////
+  always_comb begin
+    unique case (zpn_operator_i)
+      // Shift ops
+      ZPN_AVE: rounding_o = zpn_instr;
+
+      default: rounding_o = 1'b0;
     endcase
   end
 
@@ -54,11 +71,14 @@ module ibex_alu_pext_helper (
       ZPN_INSTR: begin
         unique case (zpn_operator_i)
           // Signed 32-bit
-          ZPN_KADDW,  ZPN_RADDW,
-          ZPN_KSUBW,  ZPN_RSUBW,
-          ZPN_CLRS32, ZPN_SCLIP32,
-          ZPN_AVE,    ZPN_KABSW,
-          ZPN_SRAu,   ZPN_SRAIu: begin
+          ZPN_MADDR32,  ZPN_MSUBR32,
+          ZPN_KMMAC,    ZPN_KMMACu,
+          ZPN_KMMSB,    ZPN_KMMSBu,
+          ZPN_KADDW,    ZPN_RADDW,
+          ZPN_KSUBW,    ZPN_RSUBW,
+          ZPN_CLRS32,   ZPN_SCLIP32,
+          ZPN_AVE,      ZPN_KABSW,
+          ZPN_SRAu,     ZPN_SRAIu: begin
 
             width32_o    = 1'b1;
             width8_o     = 1'b0;
@@ -157,6 +177,7 @@ module ibex_alu_pext_helper (
 
   end
 
+
   /////////////////////////
   // Subtraction decoder //
   /////////////////////////
@@ -228,6 +249,7 @@ module ibex_alu_pext_helper (
     endcase
   end
 
+
   // non-zpn comp signed decoder
   always_comb begin
     unique case(alu_operator_i)
@@ -239,7 +261,7 @@ module ibex_alu_pext_helper (
     endcase
   end
 
-/*
+
   // Decode cross Add/Sub
   always_comb begin
     unique case(alu_operator_i)
@@ -257,6 +279,23 @@ module ibex_alu_pext_helper (
 
       default: crossed_o = 1'b0;
     endcase
-  end*/
+  end
+
+
+  // Decode which ops use saturation
+  always_comb begin
+    unique case(alu_operator_i)
+      ZPN_INSTR: begin
+        unique case(zpn_operator_i)
+          ZPN_KSLLW,  ZPN_KSLL16,   ZPN_KSLL8,
+          ZPN_KSLLIW, ZPN_KSLLI16,  ZPN_KSLLI8: adder_sat_o = 1'b0;
+
+          default: adder_sat_o = 1'b1;
+        endcase
+      end
+
+      default: adder_sat_o = 1'b0;
+    endcase
+  end
 
 endmodule

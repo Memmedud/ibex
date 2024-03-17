@@ -111,9 +111,6 @@ module ibex_mult_pext (
   logic[1:0] zpn_signed_mult, signed_mult;
   assign zpn_signed_mult = {~(zpn_operator_i == ZPN_UMAQA), ~((zpn_operator_i == ZPN_UMAQA) | (zpn_operator_i == ZPN_SMAQAsu))};
   assign signed_mult = zpn_instr_i ? zpn_signed_mult : {signed_mode_i[0], signed_mode_i[1]};
-  
-  //logic sign_extend;    // TODO
-  //assign sign_extend = (~((mult_state == LOWER) & cycle_count[0])) | (md_operator_i == MD_OP_MULH);
 
   // Decode Rounding ops    // TODO
   /*logic[31:0] rounding_mask;
@@ -401,11 +398,11 @@ module ibex_mult_pext (
 
           ZPN_SMBB16,   ZPN_SMBT16: mult_result = mult_sum_16x16_0;
 
-          ZPN_KDMBB,    ZPN_KDMBT: mult_result = {mult_sum_16x16_0[30:0], 1'b1};  // TODO: Add saturation as well
+          ZPN_KDMBB,    ZPN_KDMBT: mult_result = {mult_sum_16x16_0[30:0], 1'b0};
 
           ZPN_SMTT16: mult_result = mult_sum_16x16_1;
           
-          ZPN_KDMTT: mult_result = {mult_sum_16x16_1[30:0], 1'b0};    // TODO: Add saturation as well
+          ZPN_KDMTT: mult_result = {mult_sum_16x16_1[30:0], 1'b0};
 
           ZPN_KMDA,     ZPN_KMXDA,
           ZPN_SMDS,     ZPN_SMDRS,    
@@ -416,9 +413,9 @@ module ibex_mult_pext (
           ZPN_KMAXDS,   ZPN_KMSDA,
           ZPN_KMSXDA: mult_result = sum_total_32x32[47:16];
 
-          ZPN_KHMBB,    ZPN_KHMBT: mult_result = {15'h0, mult_sum_16x16_0[31:15]};    // TODO Add saturation
+          ZPN_KHMBB, ZPN_KHMBT: mult_result = {{16{mult_sum_16x16_0[31]}}, mult_sum_16x16_0[30:15]};
           
-          ZPN_KHMTT: mult_result = {15'h0, mult_sum_16x16_1[31:15]};
+          ZPN_KHMTT: mult_result = {{16{mult_sum_16x16_1[31]}}, mult_sum_16x16_1[30:15]};
 
           // TODO
           ZPN_KDMABB,   ZPN_KDMABT,  ZPN_KDMATT: mult_result = '0; // !!!!

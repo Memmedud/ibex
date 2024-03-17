@@ -229,8 +229,8 @@ module ibex_decoder_pext (
           7'b001_1001: zpn_operator_o = ZPN_URSUBW;
 
           // 16-bit Sub
-          7'b000_0011: zpn_operator_o = ZPN_KSUBW;
-          7'b000_1011: zpn_operator_o = ZPN_UKSUBW;
+          7'b000_0011: zpn_operator_o = ZPN_KSUBH;
+          7'b000_1011: zpn_operator_o = ZPN_UKSUBH;
 
 
           // Bit-shifting
@@ -340,8 +340,6 @@ module ibex_decoder_pext (
   logic[16:0] unused_bits = {instr[19:15], instr[11:0]};
 
   // Decode zpn-mult_sel
-  // Note: This is only decoding multi-cycle 
-  //       mults to reduce complexity
   always_comb begin
     unique case (zpn_operator_o)
       // 16x16      // 32x16      // 8x8        // 32x32                   
