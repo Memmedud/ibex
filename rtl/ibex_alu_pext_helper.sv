@@ -51,9 +51,9 @@ module ibex_alu_pext_helper (
   end
 
 
-  //////////////////////
-  // Rounding decoder //
-  //////////////////////
+  /////////////////////////
+  // Rounding op decoder //
+  /////////////////////////
   always_comb begin
     unique case (zpn_operator_i)
       ZPN_KSLRA16u,   ZPN_KSLRA8u,  ZPN_KSLRAWu,
@@ -80,6 +80,7 @@ module ibex_alu_pext_helper (
           ZPN_SLL16,    ZPN_SLL8,
           ZPN_SLLI16,   ZPN_SLLI8,
           ZPN_KSLL16,   ZPN_KSLL8,
+          ZPN_KSLLW,    ZPN_KSLLIW,
           ZPN_SRA16u,   ZPN_SRA8u,
           ZPN_SRL16u,   ZPN_SRL8u,
           ZPN_KSLRA16,  ZPN_KSLRA8,   ZPN_KSLRAW,
@@ -321,8 +322,10 @@ module ibex_alu_pext_helper (
     unique case(alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i)
-          ZPN_KSLLW,  ZPN_KSLL16,   ZPN_KSLL8,
-          ZPN_KSLLIW, ZPN_KSLLI16,  ZPN_KSLLI8: adder_sat_o = 1'b0;
+          ZPN_KSLLW,    ZPN_KSLL16,   ZPN_KSLL8,
+          ZPN_KSLLIW,
+          ZPN_KSLRAW,   ZPN_KSLRA16,  ZPN_KSLRA8,
+          ZPN_KSLRAWu,  ZPN_KSLRA16u, ZPN_KSLRA8u: adder_sat_o = 1'b0;
 
           default: adder_sat_o = 1'b1;
         endcase

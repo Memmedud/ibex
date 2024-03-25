@@ -236,6 +236,7 @@ module ibex_decoder_pext (
           // Bit-shifting
           // 32-bit Shift
           7'b001_0010: zpn_operator_o = ZPN_SRAu;
+          7'b110_1010: zpn_operator_o = ZPN_SRAIu;
           7'b001_0011: zpn_operator_o = ZPN_KSLLW;
           7'b001_1011: zpn_operator_o = ZPN_KSLLIW;
           7'b011_0111: zpn_operator_o = ZPN_KSLRAW;

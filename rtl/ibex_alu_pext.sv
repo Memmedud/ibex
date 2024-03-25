@@ -552,7 +552,7 @@ module ibex_alu_pext #(
 
   logic[31:0] shift_result_masked, shift_result_signed;
   assign shift_result_masked = shift_result_raw[31:0] & shift_mask;
-  assign shift_result_signed = shift_result_masked | shift_mask_signed;
+  assign shift_result_signed = shift_result_masked    | shift_mask_signed;
 
   // Flip bytes back for Left-shifting
   logic[31:0] shift_result_rev;
@@ -565,6 +565,17 @@ module ibex_alu_pext #(
   // Produce final shifter output
   logic[31:0] shift_result;
   assign shift_result = shift_left ? shift_result_rev : shift_result_signed;
+
+  // Produce left/right and saturating shifter output
+  logic[31:0] lr_shift_result;
+  assign lr_shift_result = (shift_left | sat_shift) ? saturating_result : shift_result_signed;
+
+  // Generate Saturating immediate shift result
+  logic[31:0] sat_imm_shift_result;
+  logic       sat_shift;
+  assign sat_shift = (((zpn_operator_i == ZPN_SLLI16) & imm_val_i[4])  | 
+                      ((zpn_operator_i == ZPN_SLLI8)  & imm_val_i[3])) & zpn_instr;
+  assign sat_imm_shift_result = sat_shift ? saturating_result : shift_result_rev;
 
 
   //////////
@@ -948,16 +959,19 @@ module ibex_alu_pext #(
       ZPN_SRL16,    ZPN_SRL8,
       ZPN_SRL16u,   ZPN_SRL8u,
       ZPN_SRLI16,   ZPN_SRLI8,
-      ZPN_SLL16,    ZPN_SLL8,
-      ZPN_SLLI16,   ZPN_SLLI8: zpn_result = shift_result;
+      ZPN_SLL16,    ZPN_SLL8: zpn_result = shift_result;
 
       // Saturating shifts
       ZPN_KSLLW,    ZPN_KSLLIW,
       ZPN_KSLL16,   ZPN_KSLLI16,
       ZPN_KSLL8,    ZPN_KSLLI8: zpn_result = saturating_result;
 
+      // Some funky saturating shifts
+      ZPN_SLLI16,   ZPN_SLLI8: zpn_result = sat_imm_shift_result;
+
       // Left-Right shifts
-      // TODO
+      ZPN_KSLRA16,  ZPN_KSLRA8,   ZPN_KSLRAW,
+      ZPN_KSLRA16u, ZPN_KSLRA8u,  ZPN_KSLRAWu: zpn_result = lr_shift_result;
       
       // Bit-count ops
       ZPN_CLRS16, ZPN_CLRS8, ZPN_CLRS32,
