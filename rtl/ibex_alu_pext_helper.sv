@@ -20,7 +20,8 @@ module ibex_alu_pext_helper (
   output logic[1:0]               alu_sub_o,
   output logic                    crossed_o,
   output logic                    adder_sat_o,
-  output logic                    rounding_o
+  output logic                    rounding_o,
+  output logic                    shift_o
 );
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
@@ -55,10 +56,43 @@ module ibex_alu_pext_helper (
   //////////////////////
   always_comb begin
     unique case (zpn_operator_i)
-      // Shift ops
-      ZPN_AVE: rounding_o = zpn_instr;
+      ZPN_KSLRA16u,   ZPN_KSLRA8u,  ZPN_KSLRAWu,
+      ZPN_SRA16u,     ZPN_SRA8u,
+      ZPN_SRL16u,     ZPN_SRL8u,
+      ZPN_SRAu,       ZPN_SRAIu: rounding_o = zpn_instr;
 
       default: rounding_o = 1'b0;
+    endcase
+  end
+
+
+  //////////////////////
+  // Shift op decoder //
+  //////////////////////
+  always_comb begin
+    unique case (alu_operator_i)
+      ZPN_INSTR: begin
+        unique case (zpn_operator_i)
+          ZPN_SRA16,    ZPN_SRA8,
+          ZPN_SRAI16,   ZPN_SRAI8,
+          ZPN_SRL16,    ZPN_SRL8,
+          ZPN_SRLI16,   ZPN_SRLI8,
+          ZPN_SLL16,    ZPN_SLL8,
+          ZPN_SLLI16,   ZPN_SLLI8,
+          ZPN_KSLL16,   ZPN_KSLL8,
+          ZPN_SRA16u,   ZPN_SRA8u,
+          ZPN_SRL16u,   ZPN_SRL8u,
+          ZPN_KSLRA16,  ZPN_KSLRA8,   ZPN_KSLRAW,
+          ZPN_KSLRA16u, ZPN_KSLRA8u,  ZPN_KSLRAWu,
+          ZPN_SRAu,     ZPN_SRAIu: shift_o = 1'b1;
+
+          default: shift_o = 1'b0;
+        endcase
+      end
+
+      ALU_SRA, ALU_SRL, ALU_SLL: shift_o = 1'b1;
+
+      default: shift_o = 1'b0;
     endcase
   end
 
