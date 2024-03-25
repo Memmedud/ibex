@@ -323,7 +323,7 @@ module ibex_alu_pext_helper (
       ZPN_INSTR: begin
         unique case(zpn_operator_i)
           ZPN_KSLLW,    ZPN_KSLL16,   ZPN_KSLL8,
-          ZPN_KSLLIW,
+          ZPN_KSLLIW,   ZPN_SLL16,    ZPN_SLL8,
           ZPN_KSLRAW,   ZPN_KSLRA16,  ZPN_KSLRA8,
           ZPN_KSLRAWu,  ZPN_KSLRA16u, ZPN_KSLRA8u: adder_sat_o = 1'b0;
 

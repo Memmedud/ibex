@@ -204,14 +204,14 @@ module ibex_alu_pext #(
   // Saturation //
   ////////////////
   logic[8:0] sat_op0, sat_op1, sat_op2, sat_op3;
-  assign sat_op0 = adder_sat ? adder_result0[8:0] : {operand_a_i[7],  shift_result[7:0]};
-  assign sat_op1 = adder_sat ? adder_result1[8:0] : {operand_a_i[15], shift_result[15:8]};
-  assign sat_op2 = adder_sat ? adder_result2[8:0] : {operand_a_i[23], shift_result[23:16]};
-  assign sat_op3 = adder_sat ? adder_result3[8:0] : {operand_a_i[31], shift_result[31:24]};
+  assign sat_op0 = ~shift ? adder_result0[8:0] : {operand_a_i[7],  shift_result[7:0]};    // TODO: Make this pretty
+  assign sat_op1 = ~shift ? adder_result1[8:0] : {operand_a_i[15], shift_result[15:8]};
+  assign sat_op2 = ~shift ? adder_result2[8:0] : {operand_a_i[23], shift_result[23:16]};
+  assign sat_op3 = ~shift ? adder_result3[8:0] : {operand_a_i[31], shift_result[31:24]};
 
   // Decode saturation state
   logic[3:0] saturated; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
-  assign saturated = adder_sat ? {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]} : shift_saturation;
+  assign saturated = ~shift ? {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]} : shift_saturation;
 
   logic alu_set_ov;
   assign alu_set_ov = |saturated;   // TODO: Fix this
