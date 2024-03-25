@@ -206,21 +206,22 @@ module ibex_alu_pext #(
   ////////////////
   logic[8:0]  sat_op0, sat_op1, sat_op2, sat_op3;
 
-  assign sat_op0 = adder_sat ? adder_result0[8:0] : {shift_result_raw[32], shift_result[7:0]};
-  assign sat_op1 = adder_sat ? adder_result1[8:0] : {shift_result_raw[24], shift_result[7:0]};
-  assign sat_op2 = adder_sat ? adder_result2[8:0] : {shift_result_raw[16],  shift_result[7:0]};
-  assign sat_op3 = adder_sat ? adder_result3[8:0] : {shift_result_raw[8],  shift_result[7:0]};
+  assign sat_op0 = adder_sat ? adder_result0[8:0] : {~shift_result[7],  shift_result[7:0]};
+  assign sat_op1 = adder_sat ? adder_result1[8:0] : {~shift_result[15], shift_result[15:8]};
+  assign sat_op2 = adder_sat ? adder_result2[8:0] : {~shift_result[23], shift_result[23:16]};
+  assign sat_op3 = adder_sat ? adder_result3[8:0] : {~shift_result[31], shift_result[31:24]};
 
   // Decode saturation state
   logic[3:0]  saturated;      // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
   logic       alu_set_ov;
   assign alu_set_ov = |saturated;   
-  assign saturated  = {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7] };
+  assign saturated  = adder_sat ? {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]} : 
+                                  shift_saturation;
   
   // Calulate saturating result
   logic[31:0] saturating_result;
   always_comb begin
-    unique case ({signed_ops, width32, width8})
+    unique case ({(signed_ops | shift), width32, width8})
 
       3'b101 : saturating_result = { saturated[3] ? (sat_op3[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : sat_op3[7:0], 
                                      saturated[2] ? (sat_op2[8] ? SAT_VAL_S8L : SAT_VAL_S8H) : sat_op2[7:0],
@@ -450,19 +451,19 @@ module ibex_alu_pext #(
     assign shift_operand_rev[i] = operand_a_i[31-i];
   end
 
-  // Prepare operands   // TODO: Support rounding as well pipe back into adder to add one 
+  // Prepare operands
   logic[31:0] shift_operand;
   logic[3:0]  shift_sign;
   assign shift_operand = shift_left ? shift_operand_rev : normal_result;
-  assign shift_sign    = shift_left ? {operand_a_i[0],  operand_a_i[8],  operand_a_i[16], operand_a_i[24]} : 
-                                      {operand_a_i[31], operand_a_i[23], operand_a_i[15], operand_a_i[7]};
+  assign shift_sign    = shift_left ? {operand_a_i[0],   operand_a_i[8],   operand_a_i[16],  operand_a_i[24]} : 
+                                      {adder_result3[8], adder_result2[8], adder_result1[8], adder_result0[8]};
 
   // Decode shift amount
   logic[4:0]  shift_amt_raw, shift_amt;
   assign shift_amt_raw = imm_instr ? imm_val_i : operand_b_i[4:0];
   assign shift_amt     = {(width32 ? shift_amt_raw[4] : 1'b0), (width8 ? 1'b0 : shift_amt_raw[3]), shift_amt_raw[2:0]};
 
-  // Generate shift mask
+  // Generate shift and rounding mask
   logic[3:0]  shift_signed_bytes;
   logic[31:0] shift_mask_base, shift_mask, shift_mask_signed, rounding_mask_base, rounding_mask;
   always_comb begin
@@ -475,10 +476,10 @@ module ibex_alu_pext #(
       end
 
       if (i == {27'h0, shift_amt}) begin
-        rounding_mask_base[31-i] = rounding | (imm_val_i[4] & ~width32) | (imm_val_i[3] & width8);
+        rounding_mask_base[i] = rounding | ((imm_val_i[4] & ~width32) | (imm_val_i[3] & width8)) & imm_instr;
       end
       else begin
-        rounding_mask_base[31-i] = 1'b0;
+        rounding_mask_base[i] = 1'b0;
       end
     end
 
@@ -493,7 +494,9 @@ module ibex_alu_pext #(
       2'b01  : rounding_mask = {4{1'b0, rounding_mask_base[7:1]}};
       default: rounding_mask = {2{1'b0, rounding_mask_base[15:1]}};
     endcase
+  end
 
+  always_comb begin
     unique case ({width32, width8})
       2'b10  : shift_signed_bytes = shift_signed ? {4{shift_sign[3]}} : 4'b0000;
       2'b01  : shift_signed_bytes = shift_signed ? {shift_sign[3], shift_sign[2], shift_sign[1], shift_sign[0]} : 4'b0000;
@@ -503,6 +506,20 @@ module ibex_alu_pext #(
     for (int unsigned b = 0; b < 4; b++) begin
       shift_mask_signed[8*b +: 8] = shift_signed_bytes[b] ? ~shift_mask[8*b +: 8] : 8'h0;
     end
+  end
+
+  // Detect Saturation
+  logic[3:0] saturation_bytes, shift_saturation;
+  always_comb begin
+    for (int unsigned b = 0; b < 4; b++) begin
+      saturation_bytes[b] = |(shift_operand[8*b +: 8] & ~shift_mask[8*b +: 8]);
+    end
+
+    unique case ({width32, width8})
+      2'b10  : shift_saturation = {4{|saturation_bytes}};
+      2'b01  : shift_saturation = saturation_bytes;
+      default: shift_saturation = {{2{|saturation_bytes[3:2]}}, {2{|saturation_bytes[1:0]}}};
+    endcase
   end
 
   // Decode if we should left-shift (right shifting by default)
@@ -519,7 +536,7 @@ module ibex_alu_pext #(
           ZPN_SCLIP16,  ZPN_SCLIP8,
           ZPN_SCLIP32,  ZPN_UCLIP32: shift_left = 1'b1;
 
-          ZPN_KSLRAW,   ZPN_KSLRAWu: shift_left = ~operand_b_i[5];    // TODO: Also fix logical/arith shift
+          ZPN_KSLRAW,   ZPN_KSLRAWu: shift_left = ~operand_b_i[5];
 
           ZPN_KSLRA16,  ZPN_KSLRA16u: shift_left = ~operand_b_i[4];
 
@@ -880,12 +897,6 @@ module ibex_alu_pext #(
       ZPN_MADDR32,  ZPN_MSUBR32,
       ZPN_KMMAC,    ZPN_KMMACu,
       ZPN_KMMSB,    ZPN_KMMSBu: zpn_result = adder_result;
-
-      // Saturating results // TODO
-      // Shifts
-      ZPN_KSLLW,    ZPN_KSLLIW,
-      ZPN_KSLL16,   ZPN_KSLLI16,
-      ZPN_KSLL8,    ZPN_KSLLI8: zpn_result = saturating_result;
       
       // SIMD multiplication ops
       // 16x16      // 32x16      // 8x8        // 32x32                   
@@ -950,6 +961,11 @@ module ibex_alu_pext #(
       ZPN_SRLI16,   ZPN_SRLI8,
       ZPN_SLL16,    ZPN_SLL8,
       ZPN_SLLI16,   ZPN_SLLI8: zpn_result = shift_result;
+
+      // Saturating shifts
+      ZPN_KSLLW,    ZPN_KSLLIW,
+      ZPN_KSLL16,   ZPN_KSLLI16,
+      ZPN_KSLL8,    ZPN_KSLLI8: zpn_result = saturating_result;
 
       // Left-Right shifts
       // TODO
