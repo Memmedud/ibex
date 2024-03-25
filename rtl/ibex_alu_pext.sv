@@ -5,7 +5,7 @@
 
 /*
  * Special Arithmetic logic unit for P-ext instructions
- *  -> Enabling P-extension will disable B-extension and use Zbpbo instead    // TODO: Add Zbpbo extension
+ *  -> Enabling P-extension will disable B-extension and use Zbpbo instead
  */
 module ibex_alu_pext #(
   parameter SAT_VAL_U8    = 8'hff,          // 255
@@ -49,9 +49,9 @@ module ibex_alu_pext #(
   output logic                          set_ov_o,
   output logic                          comparison_result_o
 );
+
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
-
 
   ////////////////////
   // Decoder helper //
@@ -78,10 +78,9 @@ module ibex_alu_pext #(
   );
 
 
-  ///////////
-  // Adder //
-  ///////////
-
+  ////////////////
+  // Main Adder //
+  ////////////////
   logic[31:0] multdiv_operand_a, multdiv_operand_b, adder_operand_a, adder_operand_b;
   assign adder_operand_a = multdiv_sel_i ? multdiv_operand_a : operand_a_i; 
   assign adder_operand_b = multdiv_sel_i ? multdiv_operand_b : operand_b_i; 
@@ -89,7 +88,7 @@ module ibex_alu_pext #(
   // Decode if we only use A_in
   logic oneop, ave;
   assign oneop = ((zpn_operator_i == ZPN_KABS8) | (zpn_operator_i == ZPN_KABS16) | (zpn_operator_i == ZPN_KABSW)) & zpn_instr;
-  assign ave = (zpn_operator_i == ZPN_AVE) & zpn_instr;
+  assign ave   = (zpn_operator_i == ZPN_AVE) & zpn_instr;
 
   // Prepare operands
   logic       sub8, sub16, sub32;
@@ -204,19 +203,18 @@ module ibex_alu_pext #(
   ////////////////
   // Saturation //
   ////////////////
-  logic[8:0]  sat_op0, sat_op1, sat_op2, sat_op3;
-
-  assign sat_op0 = adder_sat ? adder_result0[8:0] : {~shift_result[7],  shift_result[7:0]};
-  assign sat_op1 = adder_sat ? adder_result1[8:0] : {~shift_result[15], shift_result[15:8]};
-  assign sat_op2 = adder_sat ? adder_result2[8:0] : {~shift_result[23], shift_result[23:16]};
-  assign sat_op3 = adder_sat ? adder_result3[8:0] : {~shift_result[31], shift_result[31:24]};
+  logic[8:0] sat_op0, sat_op1, sat_op2, sat_op3;
+  assign sat_op0 = adder_sat ? adder_result0[8:0] : {operand_a_i[7],  shift_result[7:0]};
+  assign sat_op1 = adder_sat ? adder_result1[8:0] : {operand_a_i[15], shift_result[15:8]};
+  assign sat_op2 = adder_sat ? adder_result2[8:0] : {operand_a_i[23], shift_result[23:16]};
+  assign sat_op3 = adder_sat ? adder_result3[8:0] : {operand_a_i[31], shift_result[31:24]};
 
   // Decode saturation state
-  logic[3:0]  saturated;      // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
-  logic       alu_set_ov;
-  assign alu_set_ov = |saturated;   
-  assign saturated  = adder_sat ? {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]} : 
-                                  shift_saturation;
+  logic[3:0] saturated; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
+  assign saturated = adder_sat ? {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]} : shift_saturation;
+
+  logic alu_set_ov;
+  assign alu_set_ov = |saturated;   // TODO: Fix this
   
   // Calulate saturating result
   logic[31:0] saturating_result;
@@ -255,6 +253,7 @@ module ibex_alu_pext #(
   // Rounding //
   //////////////
   // TODO
+
 
   ////////////////
   // Multiplier //
@@ -297,14 +296,12 @@ module ibex_alu_pext #(
   ////////////////
   // Comparison //
   ////////////////
-  logic[3:0]    is_byte_equal, is_equal,   // One bit for each byte
-                is_byte_less,  is_less;    // handles both signed and unsigned forms
-
+  logic[3:0] is_byte_equal, is_equal, is_byte_less, is_less;  // One bit for each byte
+                
   // calculate is_equal
   always_comb begin
     is_byte_equal = 4'b0000;
 
-    // Decoding is done in the adder
     for (int unsigned b = 0; b < 4; b++) if (adder_result[8*b +: 8] == 8'h00) begin
       is_byte_equal[b] = 1'b1;
     end
@@ -337,8 +334,7 @@ module ibex_alu_pext #(
   end
 
   // Comparator result mux
-  logic[3:0]    comp_result_packed;
-
+  logic[3:0] comp_result_packed;
   always_comb begin
     unique case (alu_operator_i)
       ZPN_INSTR: begin
@@ -353,9 +349,9 @@ module ibex_alu_pext #(
           ZPN_SCMPLE16, ZPN_SCMPLE8,
           ZPN_UCMPLE16, ZPN_UCMPLE8: comp_result_packed = is_equal | is_less;
 
-          // Greater than, only used for max
+          // Greater than or equal
           ZPN_SMAX16,   ZPN_SMAX8,
-          ZPN_UMAX16,   ZPN_UMAX8: comp_result_packed = ~(is_equal | is_less);
+          ZPN_UMAX16,   ZPN_UMAX8: comp_result_packed = ~is_less;
           
           // Including is equal
           default: comp_result_packed = is_equal;
@@ -391,8 +387,6 @@ module ibex_alu_pext #(
   // Min/Max //
   /////////////
   logic[31:0]   minmax_result;
-
-  // Dont need to check for byte or halfword as this is done in the comparator
   always_comb begin
     for (int unsigned b = 0; b < 4; b++) begin
       minmax_result[8*b +: 8] = comp_result_packed[b] ? operand_a_i[8*b +: 8] : operand_b_i[8*b +: 8];
@@ -439,9 +433,6 @@ module ibex_alu_pext #(
   ////////////////
   // Bit-shifts //
   ////////////////
-  // Generate shift mask with inverse, reverse thermometer coding
-  // Will use this mask for both Shift and clip instructions
-  // Ex: shift_amt=4 -> mask = 0000_1111_1111_1111
   logic shift_signed;
   assign shift_signed = (alu_operator_i == ALU_SRA) | signed_ops; 
 
@@ -499,7 +490,7 @@ module ibex_alu_pext #(
   always_comb begin
     unique case ({width32, width8})
       2'b10  : shift_signed_bytes = shift_signed ? {4{shift_sign[3]}} : 4'b0000;
-      2'b01  : shift_signed_bytes = shift_signed ? {shift_sign[3], shift_sign[2], shift_sign[1], shift_sign[0]} : 4'b0000;
+      2'b01  : shift_signed_bytes = shift_signed ? shift_sign : 4'b0000;
       default: shift_signed_bytes = shift_signed ? {{2{shift_sign[3]}}, {2{shift_sign[1]}}} : 4'b0000;
     endcase
 
@@ -511,9 +502,12 @@ module ibex_alu_pext #(
   // Detect Saturation
   logic[3:0] saturation_bytes, shift_saturation;
   always_comb begin
-    for (int unsigned b = 0; b < 4; b++) begin
-      saturation_bytes[b] = |(shift_operand[8*b +: 8] & ~shift_mask[8*b +: 8]);
-    end
+    //for (int unsigned b = 0; b < 4; b++) begin
+      saturation_bytes[0] = |((operand_a_i[7:0]   ^ {8{operand_a_i[7]}})  & ~shift_mask[8:1]);
+      saturation_bytes[1] = |((operand_a_i[15:8]  ^ {8{operand_a_i[15]}}) & ~shift_mask[16:9]);
+      saturation_bytes[2] = |((operand_a_i[23:16] ^ {8{operand_a_i[23]}}) & ~shift_mask[24:17]);
+      saturation_bytes[3] = |((operand_a_i[31:24] ^ {8{operand_a_i[31]}}) & ~{1'b0, shift_mask[31:25]});
+    //end
 
     unique case ({width32, width8})
       2'b10  : shift_saturation = {4{|saturation_bytes}};
@@ -553,11 +547,8 @@ module ibex_alu_pext #(
   end
 
   // Actual shifter and mask_application
-  logic[32:0] shift_result_raw;
-  logic       unused_shift_result;
-
-  assign shift_result_raw = $signed({shift_signed & shift_operand[31], shift_operand}) >>> shift_amt;
-  assign unused_shift_result = shift_result_raw[32];
+  logic[31:0] shift_result_raw;
+  assign shift_result_raw = $signed(shift_operand) >>> shift_amt;
 
   logic[31:0] shift_result_masked, shift_result_signed;
   assign shift_result_masked = shift_result_raw[31:0] & shift_mask;
@@ -627,11 +618,11 @@ module ibex_alu_pext #(
 
   // Generate the residual value
   logic[31:0] residual_val, residual_result;
+  assign residual_result = residual_val & residual_mask;
   assign residual_val = { {8{operand_negative[3] & clip_signed}}, 
                           {8{operand_negative[2] & clip_signed}}, 
                           {8{operand_negative[1] & clip_signed}}, 
                           {8{operand_negative[0] & clip_signed}}};
-  assign residual_result = residual_val & residual_mask;
 
   // Gerenate the clipped value
   logic[31:0] clip_val_result;
@@ -700,9 +691,7 @@ module ibex_alu_pext #(
   assign bc0  = negate[0] ? (~operand_a_i[0] & bc1)   : (operand_a_i[0] & bc1);
 
   // MSB in bytes are a bit special
-  logic bc31, bc23, bc15, bc7;
-  logic clz;
-
+  logic bc31, bc23, bc15, bc7, clz;
   assign clz  = (zpn_operator_i == ZPN_CLZ8) | (zpn_operator_i == ZPN_CLZ16) | (alu_operator_i == ALU_CLZ);
   assign bc31 = bc31_raw &  clz;
   assign bc23 = bc23_raw & (~width8 | clz);
@@ -951,7 +940,7 @@ module ibex_alu_pext #(
       ZPN_SCLIP32, ZPN_SCLIP16,
       ZPN_UCLIP32, ZPN_SCLIP8: zpn_result = clip_result;
 
-      // Normal shift ops
+      // Normal and rounding shift ops
       ZPN_SRAu,     ZPN_SRAIu,
       ZPN_SRA16,    ZPN_SRA8,
       ZPN_SRA16u,   ZPN_SRA8u,
@@ -1026,8 +1015,6 @@ module ibex_alu_pext #(
       // Pack ops (Zbpbo)
       ALU_PACK, ALU_PACKH,
       ALU_PACKU: result_o = packing_result;
-
-      // TODO: Add the rest from Zbpbo
       
       // P-ext ALU output
       ZPN_INSTR:  result_o = zpn_result;
