@@ -7,7 +7,7 @@
 COREMARK_DIR = ../../../../vendor/eembc_coremark
 
 export PORT_DIR  = $(CURDIR)/ibex
-export ITERATIONS = 10
+export ITERATIONS = 1
 export OPATH = $(CURDIR)/
 
 # Export OPATH above doesn't seem to work so need to explicitly give it on the

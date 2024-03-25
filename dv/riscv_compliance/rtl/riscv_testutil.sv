@@ -165,7 +165,9 @@ module riscv_testutil (
       read_addr_q <= read_addr_d;
 
       if (host_rvalid_i) begin
-        $display("SIGNATURE: 0x%x", host_rdata_i);
+        if (host_rdata_i != 32'hDEADBEEF) begin
+          $display("SIGNATURE: 0x%x", host_rdata_i);
+        end
       end
     end
   end

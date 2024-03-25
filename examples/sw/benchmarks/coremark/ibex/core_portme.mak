@@ -4,7 +4,7 @@
 # Licensed under the Apache License, Version 2.0, see LICENSE for details.
 # SPDX-License-Identifier: Apache-2.0
 
-RV_ISA = rv32im
+RV_ISA = rv32imc_zicsr_zifencei
 SUPPRESS_PCOUNT_DUMP = 0
 
 OUTFILES = $(OPATH)coremark.dis $(OPATH)coremark.map $(OPATH)coremark.vmem
@@ -21,13 +21,13 @@ LINKER_SCRIPT        = $(SIMPLE_SYSTEM_COMMON)/link.ld
 OUTFLAG = -o
 # Flag : CC
 #	Use this flag to define compiler to use
-CC = riscv32-unknown-elf-gcc
+CC = ../../../../toolchain/riscv-gcc-main/bin/riscv32-unknown-elf-gcc
 # Flag : LD
 #	Use this flag to define compiler to use
-LD = riscv32-unknown-elf-ld
+LD = ../../../../toolchain/riscv-gcc-main/bin/riscv32-unknown-elf-ld
 # Flag : AS
 #	Use this flag to define compiler to use
-AS = riscv32-unknown-elf-as
+AS = ../../../../toolchain/riscv-gcc-main/bin/riscv32-unknown-elf-as
 # Flag : CFLAGS
 #	Use this flag to define compiler options. Note, you can add compiler options from the command line using XCFLAGS="other flags"
 PORT_CFLAGS = -g -march=$(RV_ISA) -mabi=ilp32 -static -mcmodel=medlow -mtune=sifive-3-series \
@@ -90,8 +90,8 @@ $(OPATH)$(PORT_DIR)/%$(OEXT) : %.s
 .PHONY : port_clean port_prebuild port_postbuild port_prerun port_postrun port_preload port_postload
 
 port_postbuild:
-	riscv32-unknown-elf-objdump -SD $(OPATH)coremark.elf > $(OPATH)coremark.dis
-	riscv32-unknown-elf-objcopy -O binary $(OPATH)coremark.elf $(OPATH)coremark.bin
+	../../../../toolchain/riscv-gcc-main/bin/riscv32-unknown-elf-objdump -SD $(OPATH)coremark.elf > $(OPATH)coremark.dis
+	../../../../toolchain/riscv-gcc-main/bin/riscv32-unknown-elf-objcopy -O binary $(OPATH)coremark.elf $(OPATH)coremark.bin
 	srec_cat $(OPATH)coremark.bin -binary -offset 0x0000 -byte-swap 4 -o  $(OPATH)coremark.vmem -vmem
 
 
