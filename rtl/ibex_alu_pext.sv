@@ -140,64 +140,7 @@ module ibex_alu_pext #(
   logic[31:0] normal_result;
   assign normal_result = {adder_result3[7:0], adder_result2[7:0], adder_result1[7:0], adder_result0[7:0]};
 
-  // Calulate halving results
-  logic[31:0] halving_result;
-  always_comb begin
-    unique case ({width32, width8})
-      2'b01 : halving_result  = {adder_result3[8] ^ (~signed_ops & sub[0]), adder_result3[7:1], 
-                                 adder_result2[8] ^ (~signed_ops & sub[0]), adder_result2[7:1], 
-                                 adder_result1[8] ^ (~signed_ops & sub[0]), adder_result1[7:1], 
-                                 adder_result0[8] ^ (~signed_ops & sub[0]), adder_result0[7:1] };
-      
-      2'b10 : halving_result  = {adder_result3[8] ^ (~signed_ops & sub[0]), normal_result[31:1]};
-
-      default: halving_result = {adder_result3[8] ^ (~signed_ops & sub[1]), adder_result3[7:0], adder_result2[7:1], 
-                                 adder_result1[8] ^ (~signed_ops & sub[0]), adder_result1[7:0], adder_result0[7:1] };
-    endcase
-  end
-
-  // Adder results mux
-  logic[31:0] adder_result;
-  always_comb begin
-    unique case(alu_operator_i)
-      ZPN_INSTR: begin
-        unique case(zpn_operator_i)   
-          ZPN_AVE,    // TODO add rounding ops to halving...
-          ZPN_RADDW,    ZPN_URADDW,
-          ZPN_RSUBW,    ZPN_URSUBW,
-          ZPN_URCRAS16, ZPN_URCRSA16,
-          ZPN_RCRAS16,  ZPN_RCRSA16,
-          ZPN_URSTAS16, ZPN_URSTSA16,
-          ZPN_RSTAS16,  ZPN_RSTSA16,
-          ZPN_URADD16,  ZPN_URADD8,
-          ZPN_RADD16,   ZPN_RADD8,
-          ZPN_URSUB16,  ZPN_URSUB8,
-          ZPN_RSUB16,   ZPN_RSUB8: adder_result = halving_result;
-
-          ZPN_KADDW,    ZPN_UKADDW,   // TODO: Add Saturating shifts here
-          ZPN_KSUBW,    ZPN_UKSUBW,
-          ZPN_UKCRAS16, ZPN_UKCRSA16,
-          ZPN_KCRAS16,  ZPN_KCRSA16,
-          ZPN_UKSTAS16, ZPN_UKSTSA16,
-          ZPN_KSTAS16,  ZPN_KSTSA16,
-          ZPN_UKADD16,  ZPN_UKADD8,
-          ZPN_KADD16,   ZPN_KADD8,
-          ZPN_UKSUB16,  ZPN_UKSUB8,
-          ZPN_KSUB16,   ZPN_KSUB8: adder_result = saturating_result;
-
-          ZPN_KADDH,    ZPN_UKADDH,
-          ZPN_KSUBH,    ZPN_UKSUBH: adder_result = {{16{saturating_result[15]}}, saturating_result[15:0]};
-
-          default: adder_result = normal_result;
-        endcase 
-      end
-
-      default: adder_result = normal_result;
-    endcase
-
-    adder_result_o   = normal_result;
-
-  end
+  assign adder_result_o   = normal_result;
 
 
   ////////////////
@@ -229,7 +172,7 @@ module ibex_alu_pext #(
       3'b100 : saturating_result = { saturated[3] ? (sat_op3[8] ? SAT_VAL_S16L : SAT_VAL_S16H) : {sat_op3[7:0], sat_op2[7:0]},
                                      saturated[1] ? (sat_op1[8] ? SAT_VAL_S16L : SAT_VAL_S16H) : {sat_op1[7:0], sat_op0[7:0]} };
 
-      3'b110 : saturating_result = { saturated[3] ? (sat_op3[8] ? SAT_VAL_S32L : SAT_VAL_S32H) : {normal_result}};
+      3'b110 : saturating_result = { saturated[3] ? (sat_op3[8] ? SAT_VAL_S32L : SAT_VAL_S32H) : {sat_op3[7:0], sat_op2[7:0], sat_op1[7:0], sat_op0[7:0]}};
       
       3'b001 : saturating_result = { (sat_op3[8] ^ sub[1] ? (sub[1] ? 8'h00 : SAT_VAL_U8) : sat_op3[7:0]),
                                      (sat_op2[8] ^ sub[1] ? (sub[1] ? 8'h00 : SAT_VAL_U8) : sat_op2[7:0]),
@@ -252,7 +195,20 @@ module ibex_alu_pext #(
   //////////////
   // Rounding //
   //////////////
-  // TODO
+  logic[31:0] halving_result;
+  always_comb begin
+    unique case ({width32, width8})
+      2'b01 : halving_result  = {adder_result3[8] ^ (~signed_ops & sub[0]), adder_result3[7:1], 
+                                 adder_result2[8] ^ (~signed_ops & sub[0]), adder_result2[7:1], 
+                                 adder_result1[8] ^ (~signed_ops & sub[0]), adder_result1[7:1], 
+                                 adder_result0[8] ^ (~signed_ops & sub[0]), adder_result0[7:1] };
+      
+      2'b10 : halving_result  = {adder_result3[8] ^ (~signed_ops & sub[0]), normal_result[31:1]};
+
+      default: halving_result = {adder_result3[8] ^ (~signed_ops & sub[1]), adder_result3[7:0], adder_result2[7:1], 
+                                 adder_result1[8] ^ (~signed_ops & sub[0]), adder_result1[7:0], adder_result0[7:1] };
+    endcase
+  end
 
 
   ////////////////
@@ -302,7 +258,7 @@ module ibex_alu_pext #(
   always_comb begin
     is_byte_equal = 4'b0000;
 
-    for (int unsigned b = 0; b < 4; b++) if (adder_result[8*b +: 8] == 8'h00) begin
+    for (int unsigned b = 0; b < 4; b++) if (normal_result[8*b +: 8] == 8'h00) begin
       is_byte_equal[b] = 1'b1;
     end
 
@@ -319,7 +275,7 @@ module ibex_alu_pext #(
   always_comb begin
     for (int unsigned b = 0; b < 4; b++) begin
       if ((operand_a_i[8*b+7] ^ operand_b_i[8*b+7]) == 1'b0) begin
-        is_byte_less[b] = (adder_result[8*b+7] == 1'b1);
+        is_byte_less[b] = (normal_result[8*b+7] == 1'b1);
       end
       else begin
         is_byte_less[b] = ~(operand_a_i[8*b+7] ^ (signed_ops | comp_signed));
@@ -860,43 +816,34 @@ module ibex_alu_pext #(
   logic[31:0] zpn_result;
   always_comb begin
     unique case (zpn_operator_i)
-      // Adder operation
-      // Misc
+      // Halving add/sub ops
       ZPN_AVE,
-      // Add ops
-      ZPN_KADDW,    ZPN_KADDH,
-      ZPN_UKADDW,   ZPN_UKADDH,
       ZPN_RADDW,    ZPN_URADDW,
-      ZPN_RADD16,   ZPN_RADD8,
-      ZPN_KADD16,   ZPN_KADD8,
-      ZPN_URADD16,  ZPN_URADD8,
-      ZPN_UKADD16,  ZPN_UKADD8,
-      ZPN_ADD16,    ZPN_ADD8,
-      // Sub ops
-      ZPN_KSUBW,    ZPN_KSUBH,
-      ZPN_UKSUBW,   ZPN_UKSUBH,
       ZPN_RSUBW,    ZPN_URSUBW,
-      ZPN_RSUB16,   ZPN_RSUB8,
-      ZPN_KSUB16,   ZPN_KSUB8,
-      ZPN_URSUB16,  ZPN_URSUB8,
-      ZPN_UKSUB16,  ZPN_UKSUB8,
-      ZPN_SUB16,    ZPN_SUB8,
-      // Cross Add/Sub ops
-      ZPN_RCRAS16,  ZPN_RCRSA16,
-      ZPN_KCRAS16,  ZPN_KCRSA16,
       ZPN_URCRAS16, ZPN_URCRSA16,
-      ZPN_UKCRAS16, ZPN_UKCRSA16,
-      ZPN_CRAS16,   ZPN_CRSA16,
-      // Straight Add/Sub ops
-      ZPN_RSTAS16,  ZPN_RSTSA16,
-      ZPN_KSTAS16,  ZPN_KSTSA16,
+      ZPN_RCRAS16,  ZPN_RCRSA16,
       ZPN_URSTAS16, ZPN_URSTSA16,
+      ZPN_RSTAS16,  ZPN_RSTSA16,
+      ZPN_URADD16,  ZPN_URADD8,
+      ZPN_RADD16,   ZPN_RADD8,
+      ZPN_URSUB16,  ZPN_URSUB8,
+      ZPN_RSUB16,   ZPN_RSUB8: zpn_result = halving_result;
+
+      // Saturating add/sub ops
+      ZPN_KADDW,    ZPN_UKADDW,
+      ZPN_KSUBW,    ZPN_UKSUBW,
+      ZPN_UKCRAS16, ZPN_UKCRSA16,
+      ZPN_KCRAS16,  ZPN_KCRSA16,
       ZPN_UKSTAS16, ZPN_UKSTSA16,
-      ZPN_STAS16,   ZPN_STSA16,
-      // Accumulating Mult ops that use ALU adder
-      ZPN_MADDR32,  ZPN_MSUBR32,
-      ZPN_KMMAC,    ZPN_KMMACu,
-      ZPN_KMMSB,    ZPN_KMMSBu: zpn_result = adder_result;
+      ZPN_KSTAS16,  ZPN_KSTSA16,
+      ZPN_UKADD16,  ZPN_UKADD8,
+      ZPN_KADD16,   ZPN_KADD8,
+      ZPN_UKSUB16,  ZPN_UKSUB8,
+      ZPN_KSUB16,   ZPN_KSUB8: zpn_result = saturating_result;
+
+      // Halfword add/sub saturating ops
+      ZPN_KADDH,    ZPN_UKADDH,
+      ZPN_KSUBH,    ZPN_UKSUBH: zpn_result = {{16{saturating_result[15]}}, saturating_result[15:0]};
       
       // SIMD multiplication ops
       // 16x16      // 32x16      // 8x8        // 32x32                   
@@ -966,7 +913,7 @@ module ibex_alu_pext #(
       ZPN_KSLL16,   ZPN_KSLLI16,
       ZPN_KSLL8,    ZPN_KSLLI8: zpn_result = saturating_result;
 
-      // Some funky saturating shifts
+      // Some funky semi-saturating shifts
       ZPN_SLLI16,   ZPN_SLLI8: zpn_result = sat_imm_shift_result;
 
       // Left-Right shifts
@@ -992,7 +939,7 @@ module ibex_alu_pext #(
       ZPN_INSB0, ZPN_INSB1,
       ZPN_INSB2, ZPN_INSB3: zpn_result = insb_result;
 
-      default: zpn_result = '0;
+      default: zpn_result = normal_result;
     endcase
   end
 
@@ -1007,7 +954,7 @@ module ibex_alu_pext #(
       ALU_AND: result_o = bw_result;
 
       // Adder ops (ADD is selected in the ALU when using multdiv ops)
-      ALU_ADD,  ALU_SUB: result_o = multdiv_sel_i ? multdiv_result : adder_result;
+      ALU_ADD,  ALU_SUB: result_o = multdiv_sel_i ? multdiv_result : normal_result;
 
       // Shift ops
       ALU_SLL,  ALU_SRL,
