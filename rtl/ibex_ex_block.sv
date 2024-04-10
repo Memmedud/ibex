@@ -43,6 +43,7 @@ module ibex_ex_block #(
 
   // Pext signals
   input  ibex_pkg_pext::zpn_op_e  zpn_operator_i,
+  input  logic                    zpn_instr_i,
   input  logic[4:0]               zpn_imm_val_i,
   output logic                    vxsat_set_o,
 
@@ -223,6 +224,7 @@ module ibex_ex_block #(
       .clk_i                (clk_i),
       .rst_ni               (rst_ni),
       .zpn_operator_i       (zpn_operator_i),
+      .zpn_instr_i          (zpn_instr_i),
       .alu_operator_i       (alu_operator_i),
       .multdiv_operator_i   (multdiv_operator_i),
       .multdiv_sel_i        (multdiv_sel),

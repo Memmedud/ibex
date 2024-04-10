@@ -265,6 +265,7 @@ module ibex_core import ibex_pkg::*; #(
 
   // Pext signals
   ibex_pkg_pext::zpn_op_e   zpn_operator_ex;
+  logic                     zpn_instr;
   logic [4:0]               zpn_imm_val;
 
 
@@ -595,6 +596,7 @@ module ibex_core import ibex_pkg::*; #(
     .alu_operand_b_ex_o   (alu_operand_b_ex),
 
     .zpn_operator_ex_o    (zpn_operator_ex),
+    .zpn_instr_o          (zpn_instr),
     .zpn_imm_val_o        (zpn_imm_val),
     .alu_operand_rd_ex_o  (alu_operand_rd_ex),
 
@@ -742,6 +744,7 @@ module ibex_core import ibex_pkg::*; #(
 
     // Pext signals
     .zpn_operator_i       (zpn_operator_ex),
+    .zpn_instr_i          (zpn_instr),
     .zpn_imm_val_i        (zpn_imm_val),
     .vxsat_set_o          (vxsat_set),
 

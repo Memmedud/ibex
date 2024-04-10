@@ -10,6 +10,7 @@ module ibex_decoder_pext (
   input  logic[31:0]                instr_rdata_i,
 
   output ibex_pkg_pext::zpn_op_e    zpn_operator_o,
+  output logic                      zpn_instr_o,
   output logic                      zpn_illegal_insn_o,
   output logic[4:0]                 imm_operand_o,
   output logic                      zpn_mult_sel_o 
@@ -20,6 +21,7 @@ module ibex_decoder_pext (
   assign instr = instr_rdata_i;
   assign imm_operand_o = instr[24:20];
 
+  assign zpn_instr_o = (instr_rdata_i[6:0] == 7'h77);
 
   /////////////
   // Decoder //

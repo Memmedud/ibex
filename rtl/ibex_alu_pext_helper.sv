@@ -8,9 +8,9 @@
  */
 module ibex_alu_pext_helper (
   input  ibex_pkg_pext::zpn_op_e  zpn_operator_i,
+  input  logic                    zpn_instr_i,
   input  ibex_pkg::alu_op_e       alu_operator_i,
   input  ibex_pkg::md_op_e        md_operator_i,
-  output logic                    zpn_instr_o,
 
   output logic                    imm_instr_o,
   output logic                    width32_o,
@@ -27,8 +27,7 @@ module ibex_alu_pext_helper (
   import ibex_pkg::*;
 
   logic zpn_instr;
-  assign zpn_instr   = (alu_operator_i == ZPN_INSTR);
-  assign zpn_instr_o = zpn_instr; 
+  assign zpn_instr = zpn_instr_i;
 
 
   ///////////////////////

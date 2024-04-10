@@ -20,6 +20,7 @@ module ibex_alu_pext #(
   input  logic                          rst_ni,
 
   input  ibex_pkg_pext::zpn_op_e        zpn_operator_i,
+  input  logic                          zpn_instr_i,
   input  ibex_pkg::alu_op_e             alu_operator_i,
   input  ibex_pkg::md_op_e              multdiv_operator_i,
 
@@ -62,9 +63,9 @@ module ibex_alu_pext #(
   
   ibex_alu_pext_helper alu_pext_helper (
     .zpn_operator_i     (zpn_operator_i),
+    .zpn_instr_i        (zpn_instr_i),
     .alu_operator_i     (alu_operator_i),
     .md_operator_i      (multdiv_operator_i),
-    .zpn_instr_o        (zpn_instr),
     .imm_instr_o        (imm_instr),
     .width32_o          (width32),
     .width8_o           (width8),
@@ -76,6 +77,8 @@ module ibex_alu_pext #(
     .rounding_o         (rounding),
     .shift_o            (shift)
   );
+
+  assign zpn_instr = zpn_instr_i;
 
 
   ////////////////

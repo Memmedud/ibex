@@ -75,6 +75,7 @@ module ibex_id_stage #(
 
   // Pext specific
   output ibex_pkg_pext::zpn_op_e    zpn_operator_ex_o,
+  output logic                      zpn_instr_o,
   output logic [4:0]                zpn_imm_val_o,
   output logic [31:0]               alu_operand_rd_ex_o,
 
@@ -522,14 +523,14 @@ module ibex_id_stage #(
     ibex_decoder_pext decoder_pext_i (
       .instr_rdata_i        (instr_rdata_i),
       .zpn_operator_o       (zpn_operator_ex_o),
+      .zpn_instr_o          (zpn_instr_o),
       .zpn_illegal_insn_o   (),     
       .imm_operand_o        (zpn_imm_val_o),
       .zpn_mult_sel_o       (zpn_mult_sel)
     );
 
-    // TODO: Make sure this works properly
-    assign mult_sel_ex_o = (alu_operator == ZPN_INSTR) ? zpn_mult_sel : alu_mult_sel;
-    assign mult_en_dec   = (alu_operator == ZPN_INSTR) ? zpn_mult_sel : alu_mult_en;    
+    assign mult_sel_ex_o = zpn_instr_o ? zpn_mult_sel : alu_mult_sel;
+    assign mult_en_dec   = zpn_instr_o ? zpn_mult_sel : alu_mult_en;    
 
   end
   else begin
