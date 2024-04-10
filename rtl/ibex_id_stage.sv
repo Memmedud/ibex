@@ -536,6 +536,7 @@ module ibex_id_stage #(
   else begin
 
     assign zpn_operator_ex_o  = ibex_pkg_pext::ZPN_RADD16;
+    assign zpn_instr_o        = 1'b0;
     assign zpn_imm_val_o      = 5'b0_0000;
 
     assign mult_sel_ex_o      = alu_mult_sel;

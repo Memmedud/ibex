@@ -98,6 +98,7 @@ module ibex_alu_pext #(
   logic[7:0]  add_in_a0, add_in_a1, add_in_a2, add_in_a3,
               adder_tmp_b0, adder_tmp_b1, adder_tmp_b2, adder_tmp_b3,
               add_in_b0, add_in_b1, add_in_b2, add_in_b3;
+  logic[31:0] rounding_mask;
 
   assign sub8  = sub[0] &  width8;   // For 8-bit we assume no combined add/sub
   assign sub16 = sub[1] & ~width32;  // For 32-bit we assume add/sub cannot occur
@@ -149,13 +150,15 @@ module ibex_alu_pext #(
   ////////////////
   // Saturation //
   ////////////////
-  logic[8:0] sat_op0, sat_op1, sat_op2, sat_op3;
+  logic[8:0]  sat_op0, sat_op1, sat_op2, sat_op3;
+  logic[31:0] shift_result;
   assign sat_op0 = shift ? {operand_a_i[7],  shift_result[7:0]}   : adder_result0[8:0];
   assign sat_op1 = shift ? {operand_a_i[15], shift_result[15:8]}  : adder_result1[8:0];
   assign sat_op2 = shift ? {operand_a_i[23], shift_result[23:16]} : adder_result2[8:0];
   assign sat_op3 = shift ? {operand_a_i[31], shift_result[31:24]} : adder_result3[8:0];
 
   // Decode saturation state
+  logic      shift_saturation;
   logic[3:0] saturated; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
   assign saturated = shift ? shift_saturation : {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]};
 
@@ -402,6 +405,7 @@ module ibex_alu_pext #(
   end
 
   // Prepare operands
+  logic       shift_left;
   logic[31:0] shift_operand;
   logic[3:0]  shift_sign;
   assign shift_operand = shift_left ? shift_operand_rev : normal_result;
@@ -415,7 +419,7 @@ module ibex_alu_pext #(
 
   // Generate shift and rounding mask
   logic[3:0]  shift_signed_bytes;
-  logic[31:0] shift_mask_base, shift_mask, shift_mask_signed, rounding_mask_base, rounding_mask;
+  logic[31:0] shift_mask_base, shift_mask, shift_mask_signed, rounding_mask_base;
   always_comb begin
     for (int unsigned i = 0; i < 32; i++) begin
       if (i < shift_amt) begin
@@ -459,7 +463,7 @@ module ibex_alu_pext #(
   end
 
   // Detect Saturation
-  logic[3:0] saturation_bytes, shift_saturation;
+  logic[3:0] saturation_bytes;
   always_comb begin
     //for (int unsigned b = 0; b < 4; b++) begin
       saturation_bytes[0] = |((operand_a_i[7:0]   ^ {8{operand_a_i[7]}})  & ~shift_mask[8:1]);
@@ -476,7 +480,6 @@ module ibex_alu_pext #(
   end
 
   // Decode if we should left-shift (right shifting by default)
-  logic shift_left;
   always_comb begin
     unique case (alu_operator_i)
       ZPN_INSTR: begin
@@ -522,18 +525,17 @@ module ibex_alu_pext #(
   end
 
   // Produce final shifter output
-  logic[31:0] shift_result;
   assign shift_result = shift_left ? shift_result_rev : shift_result_signed;
 
   // Produce left/right and saturating shifter output
   logic[31:0] lr_shift_result;
+  logic       sat_shift;
   assign lr_shift_result = (shift_left | sat_shift) ? saturating_result : shift_result_signed;
+  assign sat_shift       = (((zpn_operator_i == ZPN_SLLI16) & imm_val_i[4])  | 
+                            ((zpn_operator_i == ZPN_SLLI8)  & imm_val_i[3])) & zpn_instr;
 
   // Generate Saturating immediate shift result
   logic[31:0] sat_imm_shift_result;
-  logic       sat_shift;
-  assign sat_shift = (((zpn_operator_i == ZPN_SLLI16) & imm_val_i[4])  | 
-                      ((zpn_operator_i == ZPN_SLLI8)  & imm_val_i[3])) & zpn_instr;
   assign sat_imm_shift_result = sat_shift ? saturating_result : shift_result_rev;
 
 
@@ -557,10 +559,10 @@ module ibex_alu_pext #(
   logic[31:0] clip_mask, residual_mask, clip_val;
   always_comb begin
     for (int unsigned i = 0; i < 32; i++) begin
-      assign residual_mask[i] = shift_mask[31-i];
+      residual_mask[i] = shift_mask[31-i];
     end
 
-    assign clip_mask =  ~residual_mask;
+    clip_mask =  ~residual_mask;
 
     for (int unsigned b = 0; b < 4; b++) begin
       clip_val[8*b +: 8] = operand_a_i[8*b +: 8] & clip_mask[8*b +: 8] & {8{~operand_negative[b] | clip_signed}}; 
@@ -568,8 +570,9 @@ module ibex_alu_pext #(
   end
 
   // Detect if saturation is occuring
-  logic[3:0] clrs_res;
-  logic[4:0] clip_amt;
+  logic[3:0]  clrs_res;
+  logic[4:0]  clip_amt;
+  logic[31:0] bit_cnt_result;
   
   assign clip_amt = {(width32 ? ~shift_amt_raw[4] : 1'b0), (width8 ? 1'b0 : ~shift_amt_raw[3]), ~shift_amt_raw[2:0]};
   assign clrs_res = {(bit_cnt_result[27:24] < {1'b0, clip_amt[2:0]}),
@@ -702,15 +705,15 @@ module ibex_alu_pext #(
   assign bit_cnt_result_width32 = {26'h0, {1'b0, bit_cnt_fourth_layer[4:0]} + {1'b0, bit_cnt_fourth_layer[9:5]}};
 
   // 16-bit count result
+  logic[31:0] bit_cnt_result_width16;
   assign bit_cnt_result_width16 = {11'h0, bit_cnt_fourth_layer[9:5], 11'h0, bit_cnt_fourth_layer[4:0] };
   
   // 8-bit count result
-  logic[31:0] bit_cnt_result_width8, bit_cnt_result_width16;
+  logic[31:0] bit_cnt_result_width8;
   assign bit_cnt_result_width8  = {4'h0, bit_cnt_third_layer[15:12], 4'h0, bit_cnt_third_layer[11:8], 
                                    4'h0, bit_cnt_third_layer[7:4]  , 4'h0, bit_cnt_third_layer[3:0]  };
 
   // Bit-count result mux
-  logic[31:0] bit_cnt_result;
   always_comb begin
     unique case ({width32, width8})
       2'b10  : bit_cnt_result = bit_cnt_result_width32;
