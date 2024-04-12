@@ -158,8 +158,7 @@ module ibex_alu_pext #(
   assign sat_op3 = shift ? {operand_a_i[31], shift_result[31:24]} : adder_result3[8:0];
 
   // Decode saturation state
-  logic      shift_saturation;
-  logic[3:0] saturated; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
+  logic[3:0] saturated, shift_saturation;; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
   assign saturated = shift ? shift_saturation : {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]};
 
   logic alu_set_ov;

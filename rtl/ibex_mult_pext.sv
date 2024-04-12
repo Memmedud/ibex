@@ -202,89 +202,36 @@ module ibex_mult_pext (
 
   
   /////////////////////////
-  // 16x16 Kernel adders //     // Note: Also does 8x8 summation ops
+  // 16x16 Kernel adders //
   /////////////////////////
-
-  // Prepare operands
-  logic wide_ops;
-  logic[15:0] sum_ker0_op_a0, sum_ker0_op_a1, sum_ker1_op_a0, sum_ker1_op_a1;
-  logic[15:0] sum_ker0_op_b0, sum_ker0_op_b1, sum_ker1_op_b0, sum_ker1_op_b1;
-  logic[23:0] sum_ker0_op_a, sum_ker0_op_b, sum_ker1_op_a, sum_ker1_op_b;
-
   logic[16:0] sum_ker0_0, sum_ker0_1, sum_ker1_0, sum_ker1_1;
   logic[24:0] sum_ker0, sum_ker1;
 
-  assign wide_ops = (mult_mode != M8x8);
+  assign sum_ker0_0 = $signed(mult_ker0_sum01[15:0]) + $signed({{8{mult_ker0_sum00[16]}}, mult_ker0_sum00[15:8]});  
+  assign sum_ker0_1 = $signed(mult_ker0_sum11[15:0]) + $signed({{8{mult_ker0_sum10[16]}}, mult_ker0_sum10[15:8]});
+  assign sum_ker1_0 = $signed(mult_ker1_sum01[15:0]) + $signed({{8{mult_ker1_sum00[16]}}, mult_ker1_sum00[15:8]});  
+  assign sum_ker1_1 = $signed(mult_ker1_sum11[15:0]) + $signed({{8{mult_ker1_sum10[16]}}, mult_ker1_sum10[15:8]});
 
-  assign sum_ker0_op_a0 = wide_ops ? mult_ker0_sum01[15:0] : mult_ker0_sum11[15:0];
-  assign sum_ker0_op_a1 = wide_ops ? mult_ker0_sum11[15:0] : mult_ker1_sum11[15:0];
-  assign sum_ker1_op_a0 = mult_ker1_sum01[15:0];
-  assign sum_ker1_op_a1 = mult_ker1_sum11[15:0];
-  assign sum_ker0_op_b0 = wide_ops ? {{8{mult_ker0_sum00[16]}}, mult_ker0_sum00[15:8]} : mult_ker0_sum00[15:0];
-  assign sum_ker0_op_b1 = wide_ops ? {{8{mult_ker0_sum10[16]}}, mult_ker0_sum10[15:8]} : mult_ker1_sum00[15:0];
-  assign sum_ker1_op_b0 = {{8{mult_ker1_sum00[16]}}, mult_ker1_sum00[15:8]};
-  assign sum_ker1_op_b1 = {{8{mult_ker1_sum10[16]}}, mult_ker1_sum10[15:8]};
-
-  assign sum_ker0_op_a = wide_ops ? {sum_ker0_1[15:0], mult_ker0_sum10[7:0]} : {{7{sum_ker0_1[16]}}, sum_ker0_1};
-  assign sum_ker0_op_b = wide_ops ? {{8{sum_ker0_0[16]}}, sum_ker0_0[15:0]}  : {{7{sum_ker0_0[16]}}, sum_ker0_0};   // TODO maybe
-  assign sum_ker1_op_a = {sum_ker1_1[15:0], mult_ker1_sum10[7:0]};
-  assign sum_ker1_op_b = {{8{sum_ker1_0[16]}}, sum_ker1_0[15:0]};
-
-  assign sum_ker0_0 = $signed(sum_ker0_op_a0) + $signed(sum_ker0_op_b0);  
-  assign sum_ker0_1 = $signed(sum_ker0_op_a1) + $signed(sum_ker0_op_b1);
-  assign sum_ker1_0 = $signed(sum_ker1_op_a0) + $signed(sum_ker1_op_b0);  
-  assign sum_ker1_1 = $signed(sum_ker1_op_a1) + $signed(sum_ker1_op_b1);
-
-  assign sum_ker0 = $signed(sum_ker0_op_a) + $signed(sum_ker0_op_b);
-  assign sum_ker1 = $signed(sum_ker1_op_a) + $signed(sum_ker1_op_b);
+  assign sum_ker0 = $signed({sum_ker0_1[15:0], mult_ker0_sum10[7:0]}) + $signed({{8{sum_ker0_0[16]}}, sum_ker0_0[15:0]});
+  assign sum_ker1 = $signed({sum_ker1_1[15:0], mult_ker1_sum10[7:0]}) + $signed({{8{sum_ker1_0[16]}}, sum_ker1_0[15:0]});
 
   logic[1:0] unused_sum_ker1;
   assign unused_sum_ker1 = {sum_ker1[24], sum_ker1_1[16]};
 
 
-  /////////////////////////
-  // 32x16 Kernel adders //     // Note: also does sum1 + sum2 for accum ops
-  /////////////////////////
-  logic[31:0] sum_op_a_32x16, sum_op_b_32x16;
+  ////////////////////////
+  // 32x16 Kernel adder //
+  ////////////////////////
   logic[32:0] sum_total_32x16;
   logic       unused_sum_total_32x16;
-  logic       narrow_ops;
-  logic       reversed_mult;
 
-  assign narrow_ops    = (mult_mode == M8x8)           | (mult_mode == M16x16);
-  assign reversed_mult = (zpn_operator_i == ZPN_SMDRS) | (zpn_operator_i == ZPN_KMADRS);
-
-  always_comb begin
-    if (add_mode[0]) begin
-      sum_op_a_32x16 = {sum_ker0[23:0], mult_ker0_sum00[7:0]};
-      sum_op_b_32x16 = {sum_ker1[23:0], mult_ker1_sum00[7:0]};
-
-      if (reversed_mult) begin
-        sum_op_a_32x16 = ~{sum_ker0[23:0], mult_ker0_sum00[7:0]};
-      end
-      else if (accum_sub[0]) begin
-        sum_op_b_32x16 = ~{sum_ker1[23:0], mult_ker1_sum00[7:0]};
-      end
-    end 
-    else begin    // TODO
-      if (narrow_ops) begin
-        sum_op_a_32x16 = {8'h00, sum_ker0[23:0]};
-        sum_op_b_32x16 = 32'h0;
-      end
-      else begin
-        sum_op_a_32x16 = {sum_ker1[23:0], mult_ker1_sum00[7:0]};
-        sum_op_b_32x16 = {{16{sum_ker0[24]}}, sum_ker0[23:8]};
-      end
-    end
-  end
-
-  assign sum_total_32x16 = $signed(sum_op_a_32x16) + $signed(sum_op_b_32x16) + {31'h0, accum_sub[0]};// + rounding_mask; // TODO
+  assign sum_total_32x16 = $signed({sum_ker1[23:0], mult_ker1_sum00[7:0]}) + $signed({{16{sum_ker0[24]}}, sum_ker0[23:8]});
   assign unused_sum_total_32x16 = sum_total_32x16[32];
 
 
-  /////////////////////////
-  // 32x32 Kernel adders //     // Note: also does rd + sum for accum ops
-  /////////////////////////
+  ////////////////////////
+  // 32x32 Kernel adder //
+  ////////////////////////
   logic[47:0] sum_op_a_32x32, sum_op_b_32x32;
   logic[48:0] sum_total_32x32;
   logic[16:0] unused_sum_total_32x32;
@@ -295,24 +242,46 @@ module ibex_mult_pext (
                     (zpn_operator_i == ZPN_MSUBR32);
 
   always_comb begin
-    if (add_mode[1]) begin
-      sum_op_a_32x32 = {rd_val_i, 16'h0};
-      sum_op_b_32x32 = {sum_total_32x16[31:0], 16'h0};
+    if (mult_LSW) begin
+      sum_op_a_32x32 = {mult_sum_32x16[15:0], 32'h0};
+      sum_op_b_32x32 = {imd_val_q_i[0][31:0], 16'h0};
     end
     else begin
-      if (mult_LSW) begin
-        sum_op_a_32x32 = {mult_sum_32x16[15:0], 32'h0};
-        sum_op_b_32x32 = {imd_val_q_i[0][31:0], 16'h0};
-      end
-      else begin
-        sum_op_a_32x32 = mult_sum_32x16;
-        sum_op_b_32x32 = {imd_val_q_i[1][31:0], imd_val_q_i[0][31:16]};
-      end
+      sum_op_a_32x32 = mult_sum_32x16;
+      sum_op_b_32x32 = {imd_val_q_i[1][31:0], imd_val_q_i[0][31:16]};
     end
   end
 
-  assign sum_total_32x32 = $signed(sum_op_a_32x32) + $signed(sum_op_b_32x32) + {31'h0, accum_sub[1], 16'h0};
+  assign sum_total_32x32 = $signed(sum_op_a_32x32) + $signed(sum_op_b_32x32);
   assign unused_sum_total_32x32 = {sum_total_32x32[48], sum_total_32x32[15:0]};
+
+
+  ////////////////
+  // MAC adders //
+  ////////////////
+  // 8x8 adder
+  logic[16:0] sum_8x8;
+  assign sum_8x8 = $signed(mult_ker0_sum00[16:0]) + $signed(mult_ker0_sum11[16:0]) + 
+                   $signed(mult_ker1_sum00[16:0]) + $signed(mult_ker1_sum11[16:0]);
+           
+  // 16x16 adder
+  logic[24:0] sum_16x16;
+  logic       reversed_mult;
+  assign reversed_mult = (zpn_operator_i == ZPN_SMDRS) | (zpn_operator_i == ZPN_KMADRS);
+  assign sum_16x16 = $signed(sum_ker0 ^ {25{reversed_mult}}) + $signed(sum_ker1 ^ {25{accum_sub[0]}}) + {24'h0, reversed_mult | accum_sub[0]};
+
+  // Rd adder
+  logic[31:0] accum_Rd, accum_Rd_operand;
+  
+  always_comb begin
+    unique case(mult_mode)
+      M8x8   : accum_Rd_operand = {15'h0, sum_8x8};
+      M16x16 : accum_Rd_operand = {7'h0, sum_16x16};
+      default: accum_Rd_operand = mult_sum_32x16_MSW;
+    endcase
+  end
+
+  assign accum_Rd = $signed(rd_val_i) +  $signed(accum_Rd_operand);
 
 
   ////////////////
