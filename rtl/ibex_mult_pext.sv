@@ -49,7 +49,10 @@ module ibex_mult_pext (
   import ibex_pkg::*;
 
   // Intermediate value register
-  logic[1:0] imd_val_we_div, imd_val_we_mult;
+  logic[1:0]  imd_val_we_div, imd_val_we_mult;
+  logic[31:0] op_denominator_d;
+  logic[33:0] op_remainder_d;
+  logic[33:0] imd_val_d_mult[2];
   assign imd_val_we_o = div_sel_i ? imd_val_we_div : imd_val_we_mult;
   assign imd_val_d_o[0] = div_sel_i ? op_remainder_d : imd_val_d_mult[0];
   assign imd_val_d_o[1] = div_sel_i ? {2'b0, op_denominator_d} : imd_val_d_mult[1];
@@ -57,6 +60,12 @@ module ibex_mult_pext (
   // Assign unused variable
   logic unused_mult_en_i;
   assign unused_mult_en_i = mult_en_i;
+
+  // FSM state enum
+  typedef enum logic[1:0] {
+    LOWER, UPPER, ACCUM
+  } mult_pext_fsm_e;
+  mult_pext_fsm_e    mult_state, mult_state_next;
 
   ////////////////////
   // Decoder helper //
@@ -89,9 +98,9 @@ module ibex_mult_pext (
   //////////                        |_|                     //////////
 
   logic         mult_valid;
-  logic [31:0]  mult_result;
+  logic [31:0]  mult_result, mult_sum_32x32W, mult_sum_32x16_MSW;
+  logic [47:0]  mult_sum_32x16;
   logic [31:0]  alu_operand_a_mult, alu_operand_b_mult;
-  logic [33:0]  imd_val_d_mult[2];
   logic [1:0]   quadrant;
  
   assign imd_val_d_mult[0] = (mult_state == UPPER) ? {2'b0, mult_sum_32x32W} : {2'b0, mult_sum_32x16[31:0]};
@@ -310,38 +319,22 @@ module ibex_mult_pext (
   end
   
 
-  /////////////////
-  // 8x8 results //
-  /////////////////
+  ///////////////////////
+  // Result generation //
+  ///////////////////////
   logic[7:0] mult_sum_8x8_0, mult_sum_8x8_1, mult_sum_8x8_2, mult_sum_8x8_3;
   assign mult_sum_8x8_0 = crossed ? mult_ker0_sum01[14:7] : mult_ker0_sum00[14:7];
   assign mult_sum_8x8_1 = crossed ? mult_ker0_sum10[14:7] : mult_ker0_sum11[14:7];
   assign mult_sum_8x8_2 = crossed ? mult_ker1_sum01[14:7] : mult_ker1_sum00[14:7];
   assign mult_sum_8x8_3 = crossed ? mult_ker1_sum10[14:7] : mult_ker1_sum11[14:7];
 
-
-  ///////////////////
-  // 16x16 results //
-  ///////////////////
   logic[31:0] mult_sum_16x16_0, mult_sum_16x16_1;
   assign mult_sum_16x16_0 = {sum_ker0[23:0], mult_ker0_sum00[7:0]};
   assign mult_sum_16x16_1 = {sum_ker1[23:0], mult_ker1_sum00[7:0]};
 
-
-  ///////////////////
-  // 32x16 results //
-  ///////////////////
-  logic[47:0] mult_sum_32x16;
-  logic[31:0] mult_sum_32x16_MSW;
-
   assign mult_sum_32x16 = {sum_total_32x16[31:0], sum_ker0[7:0], mult_ker0_sum00[7:0]};
   assign mult_sum_32x16_MSW = mult_sum_32x16[47:16];
 
-
-  ///////////////////
-  // 32x32 results //
-  ///////////////////
-  logic[31:0] mult_sum_32x32W;
   assign mult_sum_32x32W = sum_total_32x32[47:16];
 
 
@@ -419,11 +412,6 @@ module ibex_mult_pext (
   ////////////////////
   // Multiplier FSM //
   ////////////////////
-  // FSM state enum
-  typedef enum logic[1:0] {
-    LOWER, UPPER, ACCUM
-  } mult_pext_fsm_e;
-  mult_pext_fsm_e    mult_state, mult_state_next;
   logic              fsm_en;
 
   // FSM state clocking
@@ -490,9 +478,8 @@ module ibex_mult_pext (
   logic        is_greater_equal;
   logic        div_change_sign, rem_change_sign;
   logic [31:0] alu_operand_a_div, alu_operand_b_div;
-  logic [33:0] op_remainder_d;
   logic [31:0] one_shift;
-  logic [31:0] op_denominator_q, op_denominator_d;
+  logic [31:0] op_denominator_q;
   logic [31:0] op_numerator_q,   op_numerator_d;
   logic [31:0] op_quotient_q,    op_quotient_d;
   logic [31:0] next_remainder;
