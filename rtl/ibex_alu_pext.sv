@@ -464,12 +464,10 @@ module ibex_alu_pext #(
   // Detect Saturation
   logic[3:0] saturation_bytes;
   always_comb begin
-    //for (int unsigned b = 0; b < 4; b++) begin
-      saturation_bytes[0] = |((operand_a_i[7:0]   ^ {8{operand_a_i[7]}})  & ~shift_mask[8:1]);
-      saturation_bytes[1] = |((operand_a_i[15:8]  ^ {8{operand_a_i[15]}}) & ~shift_mask[16:9]);
-      saturation_bytes[2] = |((operand_a_i[23:16] ^ {8{operand_a_i[23]}}) & ~shift_mask[24:17]);
-      saturation_bytes[3] = |((operand_a_i[31:24] ^ {8{operand_a_i[31]}}) & ~{1'b0, shift_mask[31:25]});
-    //end
+    saturation_bytes[0] = |((operand_a_i[7:0]   ^ {8{operand_a_i[7]}})  & ~shift_mask[8:1]);
+    saturation_bytes[1] = |((operand_a_i[15:8]  ^ {8{operand_a_i[15]}}) & ~shift_mask[16:9]);
+    saturation_bytes[2] = |((operand_a_i[23:16] ^ {8{operand_a_i[23]}}) & ~shift_mask[24:17]);
+    saturation_bytes[3] = |((operand_a_i[31:24] ^ {8{operand_a_i[31]}}) & ~{1'b0, shift_mask[31:25]});
 
     unique case ({width32, width8})
       2'b10  : shift_saturation = {4{|saturation_bytes}};

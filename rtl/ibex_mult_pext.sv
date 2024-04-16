@@ -179,8 +179,8 @@ module ibex_mult_pext (
       end
 
       M32x32: begin
-        op_a_signs = {mult_ker1_op_a1[7], 3'b000} & {4{signed_mult[1]}};
-        op_b_signs = (mult_state == UPPER) ? {mult_ker0_op_b1[7], 1'b0, mult_ker0_op_b1[7], 1'b0} & {4{signed_mult[0]}} : 4'b0000;
+        op_a_signs = {1'b0, 3'b000} & {4{signed_mult[1]}};
+        op_b_signs = (mult_state == UPPER) ? {mult_ker1_op_b1[7], 1'b0, mult_ker1_op_b1[7], 1'b0} & {4{signed_mult[0]}} : 4'b0000;
       end
     endcase
   end
@@ -215,13 +215,18 @@ module ibex_mult_pext (
   /////////////////////////
   logic[16:0] sum_ker0_0, sum_ker0_1, sum_ker1_0, sum_ker1_1;
   logic[24:0] sum_ker0, sum_ker1;
+  logic       mult_LSW;
+
+  assign mult_LSW = (md_operator_i  == MD_OP_MULL)  | 
+                    (zpn_operator_i == ZPN_MADDR32) |
+                    (zpn_operator_i == ZPN_MSUBR32);
 
   assign sum_ker0_0 = $signed(mult_ker0_sum01[15:0]) + $signed({{8{mult_ker0_sum00[16]}}, mult_ker0_sum00[15:8]});  
   assign sum_ker0_1 = $signed(mult_ker0_sum11[15:0]) + $signed({{8{mult_ker0_sum10[16]}}, mult_ker0_sum10[15:8]});
   assign sum_ker1_0 = $signed(mult_ker1_sum01[15:0]) + $signed({{8{mult_ker1_sum00[16]}}, mult_ker1_sum00[15:8]});  
   assign sum_ker1_1 = $signed(mult_ker1_sum11[15:0]) + $signed({{8{mult_ker1_sum10[16]}}, mult_ker1_sum10[15:8]});
 
-  assign sum_ker0 = $signed({sum_ker0_1[15:0], mult_ker0_sum10[7:0]}) + $signed({{8{sum_ker0_0[16]}}, sum_ker0_0[15:0]});
+  assign sum_ker0 = $signed({sum_ker0_1[15:0], mult_ker0_sum10[7:0]}) + $signed({{8{sum_ker0_0[16]}} & {8{~mult_LSW}}, sum_ker0_0[15:0]});
   assign sum_ker1 = $signed({sum_ker1_1[15:0], mult_ker1_sum10[7:0]}) + $signed({{8{sum_ker1_0[16]}}, sum_ker1_0[15:0]});
 
   logic[1:0] unused_sum_ker1;
@@ -244,11 +249,6 @@ module ibex_mult_pext (
   logic[47:0] sum_op_a_32x32, sum_op_b_32x32;
   logic[48:0] sum_total_32x32;
   logic[16:0] unused_sum_total_32x32;
-  logic       mult_LSW;
-
-  assign mult_LSW = (md_operator_i  == MD_OP_MULL)  | 
-                    (zpn_operator_i == ZPN_MADDR32) |
-                    (zpn_operator_i == ZPN_MSUBR32);
 
   always_comb begin
     if (mult_LSW) begin
@@ -281,7 +281,6 @@ module ibex_mult_pext (
 
   // Rd adder
   logic[31:0] accum_Rd, accum_Rd_operand;
-  
   always_comb begin
     unique case(mult_mode)
       M8x8   : accum_Rd_operand = {15'h0, sum_8x8};
@@ -352,7 +351,7 @@ module ibex_mult_pext (
                                               saturated[0] ? 8'h7f : mult_sum_8x8_0};
 
           ZPN_SMAQA, ZPN_SMAQAsu,
-          ZPN_UMAQA: mult_result = sum_total_32x32[47:16]; 
+          ZPN_UMAQA: mult_result = accum_Rd; 
 
           // 16x16 ops ////
           ZPN_KHM16, ZPN_KHMX16: mult_result = {(saturated[3] & saturated[2]) ? 16'h7fff : mult_sum_16x16_1[30:15],
