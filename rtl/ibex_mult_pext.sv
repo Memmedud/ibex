@@ -217,9 +217,8 @@ module ibex_mult_pext (
   logic[24:0] sum_ker0, sum_ker1;
   logic       mult_LSW;
 
-  assign mult_LSW = (md_operator_i  == MD_OP_MULL)  | 
-                    (zpn_operator_i == ZPN_MADDR32) |
-                    (zpn_operator_i == ZPN_MSUBR32);
+  assign mult_LSW = (md_operator_i  == MD_OP_MULL) | (((zpn_operator_i == ZPN_MADDR32)  |
+                                                       (zpn_operator_i == ZPN_MSUBR32)) & zpn_instr_i);
 
   assign sum_ker0_0 = $signed(mult_ker0_sum01[15:0]) + $signed({{8{mult_ker0_sum00[16]}}, mult_ker0_sum00[15:8]});  
   assign sum_ker0_1 = $signed(mult_ker0_sum11[15:0]) + $signed({{8{mult_ker0_sum10[16]}}, mult_ker0_sum10[15:8]});
