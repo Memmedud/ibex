@@ -378,7 +378,7 @@ module ibex_decoder #(
               end
               5'b0_1100: begin
                 unique case(instr[26:20])
-                  7'b000_0000,                                                         // clz
+                  7'b000_0000: illegal_insn = (RV32B != RV32BNone || RV32P !=RV32PNone) ? 1'b0 : 1'b1; // clz
                   7'b000_0001,                                                         // ctz
                   7'b000_0010,                                                         // cpop
                   7'b000_0100,                                                         // sext.b
@@ -476,14 +476,15 @@ module ibex_decoder #(
             {7'b010_0000, 3'b110}, // orn
             {7'b010_0000, 3'b100}, // xnor
             {7'b011_0000, 3'b001}, // rol
-            {7'b011_0000, 3'b101}, // ror
+            {7'b011_0000, 3'b101}: illegal_insn = (RV32B != RV32BNone) ? 1'b0 : 1'b1; // ror
+
             {7'b000_0101, 3'b100}, // min
             {7'b000_0101, 3'b110}, // max
             {7'b000_0101, 3'b101}, // minu
             {7'b000_0101, 3'b111}, // maxu
             {7'b000_0100, 3'b100}, // pack
             {7'b010_0100, 3'b100}, // packu
-            {7'b000_0100, 3'b111}, // packh
+            {7'b000_0100, 3'b111}: illegal_insn = (RV32B != RV32BNone || RV32P != RV32PNone) ? 1'b0 : 1'b1; // packh
             // RV32B zbs
             {7'b010_0100, 3'b001}, // bclr
             {7'b001_0100, 3'b001}, // bset

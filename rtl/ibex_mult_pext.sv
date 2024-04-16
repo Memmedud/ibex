@@ -246,7 +246,7 @@ module ibex_mult_pext (
   logic[16:0] unused_sum_total_32x32;
   logic       mult_LSW;
 
-  assign mult_LSW = (md_operator_i == MD_OP_MULL)   | 
+  assign mult_LSW = (md_operator_i  == MD_OP_MULL)  | 
                     (zpn_operator_i == ZPN_MADDR32) |
                     (zpn_operator_i == ZPN_MSUBR32);
 
