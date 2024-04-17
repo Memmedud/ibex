@@ -1027,14 +1027,14 @@ module ibex_decoder #(
               end
             end
 
-            {7'b000_0101, 3'b100}: if (RV32B != RV32BNone) alu_operator_o = ALU_MIN;
-            {7'b000_0101, 3'b110}: if (RV32B != RV32BNone) alu_operator_o = ALU_MAX;
-            {7'b000_0101, 3'b101}: if (RV32B != RV32BNone) alu_operator_o = ALU_MINU;
-            {7'b000_0101, 3'b111}: if (RV32B != RV32BNone) alu_operator_o = ALU_MAXU;
+            {7'b000_0101, 3'b100}: if (RV32B != RV32BNone || RV32P != RV32PNone) alu_operator_o = ALU_MIN;
+            {7'b000_0101, 3'b110}: if (RV32B != RV32BNone || RV32P != RV32PNone) alu_operator_o = ALU_MAX;
+            {7'b000_0101, 3'b101}: if (RV32B != RV32BNone || RV32P != RV32PNone) alu_operator_o = ALU_MINU;
+            {7'b000_0101, 3'b111}: if (RV32B != RV32BNone || RV32P != RV32PNone) alu_operator_o = ALU_MAXU;
 
-            {7'b000_0100, 3'b100}: if (RV32B != RV32BNone) alu_operator_o = ALU_PACK;
-            {7'b010_0100, 3'b100}: if (RV32B != RV32BNone) alu_operator_o = ALU_PACKU;
-            {7'b000_0100, 3'b111}: if (RV32B != RV32BNone) alu_operator_o = ALU_PACKH;
+            {7'b000_0100, 3'b100}: if (RV32B != RV32BNone || RV32P != RV32PNone) alu_operator_o = ALU_PACK;
+            {7'b010_0100, 3'b100}: if (RV32B != RV32BNone || RV32P != RV32PNone) alu_operator_o = ALU_PACKU;
+            {7'b000_0100, 3'b111}: if (RV32B != RV32BNone || RV32P != RV32PNone) alu_operator_o = ALU_PACKH;
 
             {7'b010_0000, 3'b100}: if (RV32B != RV32BNone) alu_operator_o = ALU_XNOR;
             {7'b010_0000, 3'b110}: if (RV32B != RV32BNone) alu_operator_o = ALU_ORN;

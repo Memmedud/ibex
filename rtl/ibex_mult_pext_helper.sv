@@ -13,9 +13,10 @@
   output ibex_pkg_pext::mult_pext_mode_e  mult_mode_o,
   output logic[1:0]                       cycle_count_o,
   output logic[1:0]                       accum_sub_o,       // [sub in 32x32, sub in 32x16]
-  output logic[1:0]                       add_mode_o,
+  output logic[1:0]                       dsum_mult_o,
   output logic                            crossed_o,
-  output logic                            accum_o
+  output logic                            accum_o//,
+  //output logic                            doubling_o
 );
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
@@ -84,8 +85,8 @@
     unique case(alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i) 
-          ZPN_SMDS,   ZPN_SMDRS,  ZPN_SMXDS,  
-          ZPN_KMADS,  ZPN_KMADRS, ZPN_KMAXDS: accum_sub_o = 2'b01;
+          ZPN_SMDS,  ZPN_SMXDS,  
+          ZPN_KMADS, ZPN_KMAXDS: accum_sub_o = 2'b01;
 
           ZPN_KMSDA,  ZPN_KMSXDA: accum_sub_o = 2'b10;
 
@@ -102,32 +103,16 @@
     unique case(alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i)
-          // sum1 + sum2 only
-          ZPN_KMDA,   ZPN_KMXDA,
-          ZPN_SMDS,   ZPN_SMDRS,
-          ZPN_SMXDS: add_mode_o = 2'b01;
-
-          // rd + sum only
-          ZPN_SMAQA,    ZPN_SMAQAsu,  ZPN_UMAQA,
-          ZPN_KMMAWB,   ZPN_KMMAWBu,
-          ZPN_KMMAWT,   ZPN_KMMAWTu,
-          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
-          ZPN_KMMAWT2,  ZPN_KMMAWT2u,
-          ZPN_KMABB,    ZPN_KMABT,    
-          ZPN_KMATT,    ZPN_KDMABB,
-          ZPN_KDMABT,   ZPN_KDMATT: add_mode_o = 2'b10;
-
-          // rd + sum1 + sum2
-          ZPN_KMADA,  ZPN_KMAXDA,
+          ZPN_KMADA,  ZPN_KMAXDA,   
           ZPN_KMADS,  ZPN_KMADRS,
           ZPN_KMAXDS, ZPN_KMSDA,
-          ZPN_KMSXDA: add_mode_o = 2'b11;
+          ZPN_KMSXDA: dsum_mult_o = 1'b1;
 
-          default: add_mode_o = 2'b00;
+          default: dsum_mult_o = 1'b0;
         endcase
       end
 
-      default: add_mode_o = 2'b00;
+      default: dsum_mult_o = 1'b0;
     endcase
   end
 
@@ -176,21 +161,18 @@
     endcase
   end
 
-  /*logic doubling;
-  always_comb begin
-    unique case(zpn_operator_i)
-      // 32x32
-      ZPN_KWMMUL,   ZPN_KWMMULu,
-      // 32x16
-      ZPN_KMMWB2,   ZPN_KMMWB2u,
-      ZPN_KMMWT2,   ZPN_KMMWT2u,
-      ZPN_KMMAWB2,  ZPN_KMMAWB2u,
-      ZPN_KMMAWT2,  ZPN_KMMAWT2u,
-      // 16x16
-      ZPN_KDMBB,    ZPN_KDMBT,    ZPN_KDMTT,
-      ZPN_KDMABB,   ZPN_KDMABT,   ZPN_KDMATT: doubling = zpn_instr_i;
+  // Decode ops that double the multiplication result before accumulation
+  /*always_comb begin
+    unique case(alu_operator_i)
+      ZPN_INSTR: begin
+        unique case (zpn_operator_i)
+          ZPN_KMMWB2
+          
+          default: doubling_o = 1'b0;
+        endcase
+      end
 
-      default: doubling = 1'b0;
+      default: doubling_o = 1'b0;
     endcase
   end
 */

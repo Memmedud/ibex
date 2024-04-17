@@ -120,7 +120,7 @@ module ibex_alu_pext #(
   assign add_in_b3 = sub[1] ? ~adder_tmp_b3 & {8{~oneop}} : (shift ? rounding_mask[31:24] : adder_tmp_b3);
 
   // Decode operand signs
-  logic[7:0]  op_sign;
+  logic[7:0] op_sign;
   assign op_sign = {add_in_b3[7], add_in_b2[7] & width8, add_in_b1[7] & ~width32, add_in_b0[7] & width8,
                     add_in_a3[7], add_in_a2[7] & width8, add_in_a1[7] & ~width32, add_in_a0[7] & width8} & {8{signed_ops}};
 
@@ -162,7 +162,7 @@ module ibex_alu_pext #(
   assign saturated = shift ? shift_saturation : {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]};
 
   logic alu_set_ov;
-  assign alu_set_ov = |saturated;   // TODO: Fix this
+  assign alu_set_ov = (|saturated) & zpn_instr_i;
   
   // Calulate saturating result
   logic[31:0] saturating_result;
@@ -409,7 +409,8 @@ module ibex_alu_pext #(
   logic[3:0]  shift_sign;
   assign shift_operand = shift_left ? shift_operand_rev : normal_result;
   assign shift_sign    = shift_left ? {operand_a_i[0],   operand_a_i[8],   operand_a_i[16],  operand_a_i[24]} : 
-                                      {adder_result3[8], adder_result2[8], adder_result1[8], adder_result0[8]};
+                                      zpn_instr_i ? {adder_result3[8], adder_result2[8], adder_result1[8], adder_result0[8]} :
+                                                    {adder_result3[7], adder_result2[7], adder_result1[7], adder_result0[7]};
 
   // Decode shift amount
   logic[4:0]  shift_amt_raw, shift_amt;
@@ -850,7 +851,7 @@ module ibex_alu_pext #(
       
       // SIMD multiplication ops
       // 16x16      // 32x16      // 8x8        // 32x32                   
-      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,
+      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,    // Other 32x32 MAC comes from adder
       ZPN_SMBT16,   ZPN_SMMWBu,   ZPN_UMAQA,    ZPN_SMMULu,
       ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu,
       ZPN_KMDA,     ZPN_SMMWTu,   ZPN_KHM8,
