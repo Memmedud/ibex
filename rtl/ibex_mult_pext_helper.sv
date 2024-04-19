@@ -13,7 +13,7 @@
   output ibex_pkg_pext::mult_pext_mode_e  mult_mode_o,
   output logic[1:0]                       cycle_count_o,
   output logic[1:0]                       accum_sub_o,       // [sub in 32x32, sub in 32x16]
-  output logic[1:0]                       dsum_mult_o,
+  output logic                            dsum_mult_o,
   output logic                            crossed_o,
   output logic                            accum_o//,
   //output logic                            doubling_o

@@ -337,7 +337,7 @@ module ibex_mult_pext (
 
     unique case(mult_mode)
       M32x16,
-      M32x32: saturated = &saturated_byte;
+      M32x32: saturated = {4{&saturated_byte}};
       M8x8  : saturated = saturated_byte;
       M16x16: saturated = {{2{&saturated_byte[3:2]}}, {2{&saturated_byte[1:0]}}};
     endcase
