@@ -833,7 +833,9 @@ module ibex_alu_pext #(
       ZPN_URSUB16,  ZPN_URSUB8,
       ZPN_RSUB16,   ZPN_RSUB8: zpn_result = halving_result;
 
-      // Saturating add/sub ops
+      // Saturating add/sub/mult ops
+      ZPN_KMMAC,    ZPN_KMMACu,
+      ZPN_KMMSB,    ZPN_KMMSBu,
       ZPN_KADDW,    ZPN_UKADDW,
       ZPN_KSUBW,    ZPN_UKSUBW,
       ZPN_UKCRAS16, ZPN_UKCRSA16,
