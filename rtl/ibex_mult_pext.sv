@@ -206,7 +206,7 @@ module ibex_mult_pext (
   assign sum_ker1_1 = $signed(mult_ker1_sum11[15:0]) + $signed({{8{mult_ker1_sum10[16]}}, mult_ker1_sum10[15:8]});
 
   assign sum_ker0 = $signed({sum_ker0_1[15:0], mult_ker0_sum10[7:0]}) + $signed({{8{sum_ker0_0[16]}} & {8{~mult_LSW}}, sum_ker0_0[15:0]});
-  assign sum_ker1 = $signed({sum_ker1_1[15:0], mult_ker1_sum10[7:0]}) + $signed({{8{sum_ker1_0[16]}}, sum_ker1_0[15:0]}); // Add rounding
+  assign sum_ker1 = $signed({sum_ker1_1[15:0], mult_ker1_sum10[7:0]}) + $signed({{8{sum_ker1_0[16]}}, sum_ker1_0[15:0]});
 
   logic[1:0] unused_sum_ker1;
   assign unused_sum_ker1 = {sum_ker1[24], sum_ker1_1[16]};
@@ -216,13 +216,9 @@ module ibex_mult_pext (
   // 32x16 Kernel adder //
   ////////////////////////
   logic[32:0] sum_total_32x16;
-  logic       unused_sum_total_32x16, round_32x16;
+  logic       unused_sum_total_32x16;
 
-  assign round_32x16 = ((zpn_operator_i == ZPN_SMMWBu)   | (zpn_operator_i == ZPN_SMMWTu)    | (zpn_operator_i == ZPN_KMMAWBu) |
-                        (zpn_operator_i == ZPN_KMMAWTu)  | (zpn_operator_i == ZPN_KMMWB2u)   | (zpn_operator_i == ZPN_KMMWT2u) | 
-                        (zpn_operator_i == ZPN_KMMAWB2u) | (zpn_operator_i == ZPN_KMMAWT2u)) & zpn_instr_i;
-
-  assign sum_total_32x16 = $signed({sum_ker1[23:0], mult_ker1_sum00[7:0]}) + $signed({{16{sum_ker0[24]}}, sum_ker0[23:8]}) + {31'h0, round_32x16 & sum_ker0[7] & (~doubling | sum_ker0_0[6])};
+  assign sum_total_32x16 = $signed({sum_ker1[23:0], mult_ker1_sum00[7:0]}) + $signed({{16{sum_ker0[24]}}, sum_ker0[23:8]});
   assign unused_sum_total_32x16 = sum_total_32x16[32];
 
 
@@ -232,10 +228,6 @@ module ibex_mult_pext (
   logic[47:0] sum_op_a_32x32, sum_op_b_32x32;
   logic[48:0] sum_total_32x32;
   logic[16:0] unused_sum_total_32x32;
-  logic       round_32x32;
-
-  assign round_32x32 = ((zpn_operator_i == ZPN_SMMULu) | (zpn_operator_i == ZPN_KMMACu)   | 
-                        (zpn_operator_i == ZPN_KMMSBu) | (zpn_operator_i == ZPN_KWMMULu)) & zpn_instr_i;
 
   always_comb begin
     if (mult_LSW) begin
@@ -248,7 +240,7 @@ module ibex_mult_pext (
     end
   end
 
-  assign sum_total_32x32 = $signed(sum_op_a_32x32) + $signed(sum_op_b_32x32) + {32'h0, round_32x32, 15'h0};
+  assign sum_total_32x32 = $signed(sum_op_a_32x32) + $signed(sum_op_b_32x32);
   assign unused_sum_total_32x32 = {sum_total_32x32[48], sum_total_32x32[15:0]};
 
 
@@ -288,10 +280,8 @@ module ibex_mult_pext (
 
   // Rd adder
   logic[31:0] accum_Rd, accum_Rd_operand;
-  logic       doubling, top_top;
+  logic       top_top;
 
-  assign doubling = (zpn_operator_i == ZPN_KDMABB)  | (zpn_operator_i == ZPN_KDMABT)   | (zpn_operator_i == ZPN_KDMATT)  |
-                    (zpn_operator_i == ZPN_KMMAWB2) | (zpn_operator_i == ZPN_KMMAWB2u) | (zpn_operator_i == ZPN_KMMAWT2) | (zpn_operator_i == ZPN_KMMAWT2u);
   assign top_top  = (zpn_operator_i == ZPN_KDMATT)  | (zpn_operator_i == ZPN_KMATT);
 
   always_comb begin
@@ -300,14 +290,14 @@ module ibex_mult_pext (
 
       M16x16 : begin
         unique case({dsum_mult, top_top})
-          2'b00: accum_Rd_operand = doubling ? {mult_sum_16x16_0[30:0], 1'b0}  : mult_sum_16x16_0;
-          2'b01: accum_Rd_operand = doubling ? {mult_sum_16x16_1[30:0], 1'b0}  : mult_sum_16x16_1;
+          2'b00: accum_Rd_operand = mult_sum_16x16_0;
+          2'b01: accum_Rd_operand = mult_sum_16x16_1;
           2'b10, 
           2'b11: accum_Rd_operand = sum_16x16;
         endcase
       end
 
-      default: accum_Rd_operand = doubling ? mult_sum_32x16[46:15] : mult_sum_32x16_MSW;
+      default: accum_Rd_operand = mult_sum_32x16_MSW;
     endcase
   end
 
@@ -369,17 +359,12 @@ module ibex_mult_pext (
           ZPN_SMBB16,   ZPN_SMBT16: mult_result = mult_sum_16x16_0;
 
           ZPN_SMTT16: mult_result = mult_sum_16x16_1;
-
-          ZPN_KDMBB,    ZPN_KDMBT: mult_result = {mult_sum_16x16_0[30:0], 1'b0};
-
-          ZPN_KDMTT: mult_result = {mult_sum_16x16_1[30:0], 1'b0};
   
           ZPN_KMABB,    ZPN_KMABT,    ZPN_KMATT,
           ZPN_KMADA,    ZPN_KMAXDA,
           ZPN_KMADS,    ZPN_KMADRS,
           ZPN_KMAXDS,   ZPN_KMSDA,
-          ZPN_KMSXDA,   ZPN_KDMABB, 
-          ZPN_KDMABT,   ZPN_KDMATT: mult_result = accum_Rd;
+          ZPN_KMSXDA: mult_result = accum_Rd;
 
           ZPN_KMDA,     ZPN_KMXDA,
           ZPN_SMDS,     ZPN_SMDRS,
@@ -390,21 +375,14 @@ module ibex_mult_pext (
           ZPN_KHMTT: mult_result = {{16{mult_sum_16x16_1[31]}}, mult_sum_16x16_1[30:15]};
 
           // 32x16 ops ////
-          ZPN_SMMWB,    ZPN_SMMWBu,
-          ZPN_SMMWT,    ZPN_SMMWTu: mult_result = mult_sum_32x16_MSW;
+          ZPN_SMMWB,
+          ZPN_SMMWT: mult_result = mult_sum_32x16_MSW;
 
-          ZPN_KMMWB2,   ZPN_KMMWB2u,
-          ZPN_KMMWT2,   ZPN_KMMWT2u: mult_result = mult_sum_32x16[46:15];
-
-          ZPN_KMMAWB,   ZPN_KMMAWBu,
-          ZPN_KMMAWT,   ZPN_KMMAWTu,
-          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
-          ZPN_KMMAWT2,  ZPN_KMMAWT2u: mult_result = accum_Rd;
+          ZPN_KMMAWB,
+          ZPN_KMMAWT: mult_result = accum_Rd;
 
           // 32x32 ops ////
-          ZPN_SMMUL,    ZPN_SMMULu: mult_result = mult_sum_32x32W;
-
-          ZPN_KWMMUL,   ZPN_KWMMULu: mult_result = sum_total_32x32[46:15];
+          ZPN_SMMUL: mult_result = mult_sum_32x32W;
 
           // All other mult ops are finished in ALU
           default: mult_result = '0;
