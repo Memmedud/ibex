@@ -131,14 +131,14 @@ module ibex_mult_pext (
 
       M16x16: begin
         op_a_signs = {op_a_i[31], 1'b0, op_a_i[15]} & {3{signed_mult[1]}};
-        op_b_signs = {op_b_i[31], 1'b0, op_b_i[15]} & {3{signed_mult[0]}};
+        op_b_signs = {op_b_i[31], 1'b0, (crossed ? op_b_i[31] : op_b_i[15])} & {3{signed_mult[0]}};
 
         mult3_op_a = op_a_i[`OP_H];
       end
 
       M32x16: begin
-        op_a_signs = {1'b0, mult2_op_b[15], 1'b0} & {3{signed_mult[1]}};
-        op_b_signs = {1'b0, mult2_op_b[15], mult1_op_b[15]} & {3{signed_mult[0]}};
+        op_a_signs = {1'b0, op_a_i[31], 1'b0} & {3{signed_mult[1]}};
+        op_b_signs = {1'b0, (crossed ? {2{op_b_i[31]}} : {2{op_b_i[15]}})} & {3{signed_mult[0]}};
       end
 
       M32x32: begin
@@ -223,7 +223,7 @@ module ibex_mult_pext (
 
       MULH: begin
         summand_LL    = '0;
-        summand_HL    = {{16{&signed_mult & imd_val_q_i[0][33]}}, imd_val_q_i[0][33:16]};;
+        summand_HL    = {{16{|signed_mult & imd_val_q_i[0][33]}}, imd_val_q_i[0][33:16]};;
         summand_LH_HH = $unsigned(mult3_res);
 
         if (cycle_count[1]) begin
@@ -285,15 +285,17 @@ module ibex_mult_pext (
           ZPN_SMDS,     ZPN_SMDRS,
           ZPN_SMXDS: mult_result = sum_16x16;*/
 
-          //ZPN_KHMBB,    ZPN_KHMBT: mult_result = {{16{mult_sum_16x16_0[31]}}, mult_sum_16x16_0[30:15]};
+          ZPN_KHMBB,    ZPN_KHMBT: mult_result = {{16{mult_16x16_0[31]}}, mult_16x16_0[30:15]};
           
-          //ZPN_KHMTT: mult_result = {{16{mult_sum_16x16_1[31]}}, mult_sum_16x16_1[30:15]};
+          ZPN_KHMTT: mult_result = {{16{mult_16x16_1[31]}}, mult_16x16_1[30:15]};
 
           // 32x16 ops ////
           ZPN_SMMWB,  ZPN_SMMWT: mult_result = mult_sum_32x16MSW;
 
           // 32x32H ops ////
-          ZPN_SMMUL: mult_result = mult_sum_32x32W[31:0];
+          ZPN_SMMUL,    ZPN_SMMULu: mult_result = mult_sum_32x32W[31:0];
+
+          ZPN_KWMMUL,   ZPN_KWMMULu: mult_result = {mult_sum_32x32W[30:0], imd_val_q_i[0][15]};
 
           // All other mult ops are finished in ALU
           default: mult_result = '0;
