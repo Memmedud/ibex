@@ -7,7 +7,7 @@
  * Special Arithmetic logic unit for P-ext instructions
  *  -> Enabling P-extension will disable B-extension and use Zbpbo instead
  */
-module ibex_alu_pext #(
+ module ibex_alu_pext #(
   parameter SAT_VAL_U8    = 8'hff,          // 255
   parameter SAT_VAL_S8L   = 8'h80,          // -128
   parameter SAT_VAL_S8H   = 8'h7f,          // 127
@@ -120,7 +120,7 @@ module ibex_alu_pext #(
   assign add_in_b3 = sub[1] ? ~adder_tmp_b3 & {8{~oneop}} : (shift ? rounding_mask[31:24] : adder_tmp_b3);
 
   // Decode operand signs
-  logic[7:0]  op_sign;
+  logic[7:0] op_sign;
   assign op_sign = {add_in_b3[7], add_in_b2[7] & width8, add_in_b1[7] & ~width32, add_in_b0[7] & width8,
                     add_in_a3[7], add_in_a2[7] & width8, add_in_a1[7] & ~width32, add_in_a0[7] & width8} & {8{signed_ops}};
 
@@ -158,12 +158,11 @@ module ibex_alu_pext #(
   assign sat_op3 = shift ? {operand_a_i[31], shift_result[31:24]} : adder_result3[8:0];
 
   // Decode saturation state
-  logic      shift_saturation;
-  logic[3:0] saturated; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
+  logic[3:0] saturated, shift_saturation;; // [8:7] == 10 gives underflow, [8:7] == 01 gives overflow
   assign saturated = shift ? shift_saturation : {^sat_op3[8:7], ^sat_op2[8:7], ^sat_op1[8:7], ^sat_op0[8:7]};
 
   logic alu_set_ov;
-  assign alu_set_ov = |saturated;   // TODO: Fix this
+  assign alu_set_ov = (|saturated) & zpn_instr_i;
   
   // Calulate saturating result
   logic[31:0] saturating_result;
@@ -410,7 +409,8 @@ module ibex_alu_pext #(
   logic[3:0]  shift_sign;
   assign shift_operand = shift_left ? shift_operand_rev : normal_result;
   assign shift_sign    = shift_left ? {operand_a_i[0],   operand_a_i[8],   operand_a_i[16],  operand_a_i[24]} : 
-                                      {adder_result3[8], adder_result2[8], adder_result1[8], adder_result0[8]};
+                                      zpn_instr_i ? {adder_result3[8], adder_result2[8], adder_result1[8], adder_result0[8]} :
+                                                    {adder_result3[7], adder_result2[7], adder_result1[7], adder_result0[7]};
 
   // Decode shift amount
   logic[4:0]  shift_amt_raw, shift_amt;
@@ -465,12 +465,10 @@ module ibex_alu_pext #(
   // Detect Saturation
   logic[3:0] saturation_bytes;
   always_comb begin
-    //for (int unsigned b = 0; b < 4; b++) begin
-      saturation_bytes[0] = |((operand_a_i[7:0]   ^ {8{operand_a_i[7]}})  & ~shift_mask[8:1]);
-      saturation_bytes[1] = |((operand_a_i[15:8]  ^ {8{operand_a_i[15]}}) & ~shift_mask[16:9]);
-      saturation_bytes[2] = |((operand_a_i[23:16] ^ {8{operand_a_i[23]}}) & ~shift_mask[24:17]);
-      saturation_bytes[3] = |((operand_a_i[31:24] ^ {8{operand_a_i[31]}}) & ~{1'b0, shift_mask[31:25]});
-    //end
+    saturation_bytes[0] = |((operand_a_i[7:0]   ^ {8{operand_a_i[7]}})  & ~shift_mask[8:1]);
+    saturation_bytes[1] = |((operand_a_i[15:8]  ^ {8{operand_a_i[15]}}) & ~shift_mask[16:9]);
+    saturation_bytes[2] = |((operand_a_i[23:16] ^ {8{operand_a_i[23]}}) & ~shift_mask[24:17]);
+    saturation_bytes[3] = |((operand_a_i[31:24] ^ {8{operand_a_i[31]}}) & ~{1'b0, shift_mask[31:25]});
 
     unique case ({width32, width8})
       2'b10  : shift_saturation = {4{|saturation_bytes}};
@@ -835,7 +833,9 @@ module ibex_alu_pext #(
       ZPN_URSUB16,  ZPN_URSUB8,
       ZPN_RSUB16,   ZPN_RSUB8: zpn_result = halving_result;
 
-      // Saturating add/sub ops
+      // Saturating add/sub/mult ops
+      ZPN_KMMAC,    ZPN_KMMACu,
+      ZPN_KMMSB,    ZPN_KMMSBu,
       ZPN_KADDW,    ZPN_UKADDW,
       ZPN_KSUBW,    ZPN_UKSUBW,
       ZPN_UKCRAS16, ZPN_UKCRSA16,
@@ -853,7 +853,7 @@ module ibex_alu_pext #(
       
       // SIMD multiplication ops
       // 16x16      // 32x16      // 8x8        // 32x32                   
-      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,
+      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,    // Other 32x32 MAC comes from adder
       ZPN_SMBT16,   ZPN_SMMWBu,   ZPN_UMAQA,    ZPN_SMMULu,
       ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu,
       ZPN_KMDA,     ZPN_SMMWTu,   ZPN_KHM8,

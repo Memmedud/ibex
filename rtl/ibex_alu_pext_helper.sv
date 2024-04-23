@@ -112,6 +112,7 @@ module ibex_alu_pext_helper (
           ZPN_KSUBW,    ZPN_RSUBW,
           ZPN_CLRS32,   ZPN_SCLIP32,
           ZPN_AVE,      ZPN_KABSW,
+          ZPN_KSLRAW,   ZPN_KSLRAWu,
           ZPN_SRAu,     ZPN_SRAIu: begin
 
             width32_o    = 1'b1;
@@ -146,6 +147,7 @@ module ibex_alu_pext_helper (
           ZPN_SCMPLT16, ZPN_SCMPLE16,
           ZPN_CMPEQ16,  ZPN_SRA16,
           ZPN_SRA16u,   ZPN_SRAI16,
+          ZPN_KSLRA16,  ZPN_KSLRA16u,
           ZPN_SMIN16,   ZPN_SMAX16,
           ZPN_SCLIP16,  ZPN_KABS16,
           ZPN_CLRS16: begin
@@ -163,6 +165,7 @@ module ibex_alu_pext_helper (
           ZPN_SCMPLT8, ZPN_SCMPLE8,
           ZPN_CMPEQ8,  ZPN_SRA8,
           ZPN_SRA8u,   ZPN_SRAI8,
+          ZPN_KSLRA8,  ZPN_KSLRA8u,
           ZPN_SMIN8,   ZPN_SMAX8,
           ZPN_SCLIP8,  ZPN_KABS8,
           ZPN_CLRS8: begin

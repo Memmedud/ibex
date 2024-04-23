@@ -6,7 +6,7 @@
 /*
  * P-ext instruction decoder
  */
-module ibex_decoder_pext (
+ module ibex_decoder_pext (
   input  logic[31:0]                instr_rdata_i,
 
   output ibex_pkg_pext::zpn_op_e    zpn_operator_o,
