@@ -7,7 +7,7 @@
  * Special Arithmetic logic unit for P-ext instructions
  *  -> Enabling P-extension will disable B-extension and use Zbpbo instead
  */
-module ibex_alu_pext #(
+ module ibex_alu_pext #(
   parameter SAT_VAL_U8    = 8'hff,          // 255
   parameter SAT_VAL_S8L   = 8'h80,          // -128
   parameter SAT_VAL_S8H   = 8'h7f,          // 127
@@ -854,32 +854,32 @@ module ibex_alu_pext #(
       // SIMD multiplication ops
       // 16x16      // 32x16      // 8x8        // 32x32                   
       ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,    // Other 32x32 MAC comes from adder
-      ZPN_SMBT16,                 ZPN_UMAQA,    
+      ZPN_SMBT16,   ZPN_SMMWBu,   ZPN_UMAQA,    ZPN_SMMULu,
       ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu,
-      ZPN_KMDA,                   ZPN_KHM8,
+      ZPN_KMDA,     ZPN_SMMWTu,   ZPN_KHM8,
       ZPN_KMXDA,    ZPN_KWMMUL,   ZPN_KHMX8,
-      ZPN_SMDS,     
-      ZPN_SMDRS,    
-      ZPN_SMXDS,    
-      ZPN_KMABB,    
-      ZPN_KMABT,    
+      ZPN_SMDS,     ZPN_KWMMULu,
+      ZPN_SMDRS,    ZPN_KMMWB2,
+      ZPN_SMXDS,    ZPN_KMMWB2u,
+      ZPN_KMABB,    ZPN_KMMWT2,
+      ZPN_KMABT,    ZPN_KMMWT2u,
       ZPN_KMATT,    ZPN_KMMAWB,
-      ZPN_KMADA,    
+      ZPN_KMADA,    ZPN_KMMAWBu,
       ZPN_KMAXDA,   ZPN_KMMAWT,
-      ZPN_KMADS,    
-      ZPN_KMADRS,   
-      ZPN_KMAXDS,   
-      ZPN_KMSDA,    
-      ZPN_KMSXDA,   
+      ZPN_KMADS,    ZPN_KMMAWTu,
+      ZPN_KMADRS,   ZPN_KMMAWB2,
+      ZPN_KMAXDS,   ZPN_KMMAWB2u,
+      ZPN_KMSDA,    ZPN_KMMAWT2,
+      ZPN_KMSXDA,   ZPN_KMMAWT2u,
       ZPN_KHMBB,
       ZPN_KHMBT,
       ZPN_KHMTT,
-      
-      
-      
-      
-      
-      
+      ZPN_KDMBB,
+      ZPN_KDMBT,
+      ZPN_KDMTT,
+      ZPN_KDMABB,
+      ZPN_KDMABT,
+      ZPN_KDMATT,
       ZPN_KHM16,
       ZPN_KHMX16: zpn_result = multdiv_result;
 
