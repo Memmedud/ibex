@@ -63,7 +63,7 @@ module ibex_mult_pext (
     
   assign multdiv_en     = mult_en_internal | div_en_internal;
   assign imd_val_we_o   = {div_en_internal, multdiv_en};
-  assign imd_val_d_o[0] = div_sel_i ? op_remainder_d : {2'b0, mult_sum_32x32W};
+  assign imd_val_d_o[0] = div_sel_i ? op_remainder_d : mult_res_d;
   assign imd_val_d_o[1] = {2'b0, op_denominator_d};
 
   ////////////////////
@@ -142,7 +142,7 @@ module ibex_mult_pext (
       end
 
       M32x32: begin
-        op_a_signs = {((mult_state_d == MULH) ? op_a_i[31] : 1'b0), op_a_i[31], 1'b0} & {3{signed_mult[1]}};
+        op_a_signs = {((mult_state_q == MULH) ? op_a_i[31] : 1'b0), op_a_i[31], 1'b0} & {3{signed_mult[1]}};
         op_b_signs = {op_b_i[31], 1'b0, 1'b0} & {3{signed_mult[0]}};
       end
     endcase
@@ -154,7 +154,7 @@ module ibex_mult_pext (
   mult_fsm_e mult_state_q, mult_state_d;
 
   logic               mult_valid, mult_hold;
-  logic signed [33:0] mult1_res, mult2_res, mult3_res, accum;
+  logic signed [33:0] mult1_res, mult2_res, mult3_res, accum, mult_res_d;
   logic signed [34:0] mult_res_imd, mult_res;
   logic        [15:0] mult1_op_a, mult1_op_b, mult2_op_a, 
                       mult2_op_b, mult3_op_a, mult3_op_b;
@@ -162,6 +162,7 @@ module ibex_mult_pext (
 
   logic        [31:0] mult_16x16_0, mult_16x16_1;
   logic        [31:0] alu_operand_a_mult, alu_operand_b_mult;
+
   logic        [31:0] mult_sum_32x16MSW, mult_sum_32x32W;
 
   // Actual multipliers
@@ -172,9 +173,9 @@ module ibex_mult_pext (
   // Result generation
   assign mult_res_imd = $signed(summand_LL)   + $signed(summand_HL);
   assign mult_res     = $signed(mult_res_imd) + $signed(summand_LH_HH);
+  assign mult_res_d   = mult_LSW ? {2'b00, mult_res[`OP_L], $unsigned(mult1_res[`OP_L])} : mult_res[33:0];
 
-
-  assign mult_sum_32x32W   = mult_LSW ? {mult_res[`OP_L], $unsigned(mult1_res[`OP_L])} : mult_res[31:0];
+  assign mult_sum_32x32W = mult_res_d[31:0];
   
   assign mult_sum_32x16MSW = mult_res_imd[31:0];
   
@@ -222,7 +223,7 @@ module ibex_mult_pext (
 
       MULH: begin
         summand_LL    = '0;
-        summand_HL    = {{18{&signed_mult & imd_val_q_i[0][31]}}, imd_val_q_i[0][31:16]};;
+        summand_HL    = {{16{&signed_mult & imd_val_q_i[0][33]}}, imd_val_q_i[0][33:16]};;
         summand_LH_HH = $unsigned(mult3_res);
 
         if (cycle_count[1]) begin
@@ -268,7 +269,7 @@ module ibex_mult_pext (
 
           // 16x16 ops ////
           /*ZPN_KHM16,    ZPN_KHMX16: mult_result = {saturated[3] ? 16'h7fff : mult_sum_16x16_1[30:15],
-                                                   saturated[1] ? 16'h7fff : mult_sum_16x16_0[30:15]};*/
+                                                     saturated[1] ? 16'h7fff : mult_sum_16x16_0[30:15]};*/
 
           ZPN_SMBB16,   ZPN_SMBT16: mult_result = mult_16x16_0;
 
