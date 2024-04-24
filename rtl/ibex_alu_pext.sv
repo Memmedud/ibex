@@ -852,34 +852,28 @@
       ZPN_KSUBH,    ZPN_UKSUBH: zpn_result = {{16{saturating_result[15]}}, saturating_result[15:0]};
       
       // SIMD multiplication ops
-      // 16x16      // 32x16      // 8x8        // 32x32                   
-      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,    // Other 32x32 MAC comes from adder
-      ZPN_SMBT16,   ZPN_SMMWBu,   ZPN_UMAQA,    ZPN_SMMULu,
+      // 16x16      // 32x16      // 8x8                  
+      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    
+      ZPN_SMBT16,   ZPN_KMMAWB,   ZPN_UMAQA,    
       ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu,
-      ZPN_KMDA,     ZPN_SMMWTu,   ZPN_KHM8,
-      ZPN_KMXDA,    ZPN_KWMMUL,   ZPN_KHMX8,
-      ZPN_SMDS,     ZPN_KWMMULu,
-      ZPN_SMDRS,    ZPN_KMMWB2,
-      ZPN_SMXDS,    ZPN_KMMWB2u,
-      ZPN_KMABB,    ZPN_KMMWT2,
-      ZPN_KMABT,    ZPN_KMMWT2u,
-      ZPN_KMATT,    ZPN_KMMAWB,
-      ZPN_KMADA,    ZPN_KMMAWBu,
-      ZPN_KMAXDA,   ZPN_KMMAWT,
-      ZPN_KMADS,    ZPN_KMMAWTu,
-      ZPN_KMADRS,   ZPN_KMMAWB2,
-      ZPN_KMAXDS,   ZPN_KMMAWB2u,
-      ZPN_KMSDA,    ZPN_KMMAWT2,
-      ZPN_KMSXDA,   ZPN_KMMAWT2u,
+      ZPN_KMDA,     ZPN_KMMAWT,   ZPN_KHM8,
+      ZPN_KMXDA,                  ZPN_KHMX8,
+      ZPN_SMDS,     
+      ZPN_SMDRS,
+      ZPN_SMXDS,    
+      ZPN_KMABB,    
+      ZPN_KMABT,    
+      ZPN_KMATT,
+      ZPN_KMADA,    
+      ZPN_KMAXDA,
+      ZPN_KMADS,    
+      ZPN_KMADRS,   
+      ZPN_KMAXDS,   
+      ZPN_KMSDA,    
+      ZPN_KMSXDA,   
       ZPN_KHMBB,
       ZPN_KHMBT,
       ZPN_KHMTT,
-      ZPN_KDMBB,
-      ZPN_KDMBT,
-      ZPN_KDMTT,
-      ZPN_KDMABB,
-      ZPN_KDMABT,
-      ZPN_KDMATT,
       ZPN_KHM16,
       ZPN_KHMX16: zpn_result = multdiv_result;
 
@@ -991,7 +985,7 @@
   end
 
   // Assign output signals
-  assign set_ov_o = (multdiv_sel_i ? multdiv_set_ov : alu_set_ov) & zpn_instr;
-  assign valid_o  =  multdiv_sel_i ? multdiv_valid : 1'b1;
+  assign set_ov_o = 1'b0; //(multdiv_sel_i ? multdiv_set_ov : alu_set_ov) & zpn_instr;
+  assign valid_o  = multdiv_sel_i ? multdiv_valid : 1'b1;
 
 endmodule

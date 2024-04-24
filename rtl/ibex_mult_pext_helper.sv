@@ -30,20 +30,11 @@
           ZPN_UMAQA,    ZPN_KHM8,
           ZPN_KHMX8: mult_mode_o = M8x8;
 
-          ZPN_SMMUL,    ZPN_SMMULu,
-          ZPN_KMMAC,    ZPN_KMMACu,
-          ZPN_KMMSB,    ZPN_KMMSBu,
-          ZPN_KWMMUL,   ZPN_KWMMULu,
+          ZPN_KMMAC,    ZPN_KMMSB,
           ZPN_MADDR32,  ZPN_MSUBR32: mult_mode_o = M32x32;
 
-          ZPN_SMMWB,    ZPN_SMMWBu,
-          ZPN_SMMWT,    ZPN_SMMWTu,
-          ZPN_KMMAWB,   ZPN_KMMAWBu,
-          ZPN_KMMAWT,   ZPN_KMMAWTu,
-          ZPN_KMMWB2,   ZPN_KMMWB2u,
-          ZPN_KMMWT2,   ZPN_KMMWT2u,
-          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
-          ZPN_KMMAWT2,  ZPN_KMMAWT2u: mult_mode_o = M32x16;
+          ZPN_SMMWB,    ZPN_SMMWT, 
+          ZPN_KMMAWB,   ZPN_KMMAWT: mult_mode_o = M32x16;
 
           default: mult_mode_o = M16x16;
         endcase
@@ -61,16 +52,11 @@
     unique case (alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i)
-          // 2+0 cycle ops
-          ZPN_SMMUL,  ZPN_SMMULu,
-          ZPN_KWMMUL, ZPN_KWMMULu: cycle_count_o = 2'b01;
-
           // 1+1 cycle ops
           ZPN_MADDR32,  ZPN_MSUBR32: cycle_count_o = 2'b10;
 
           // 2+1 cycle ops
-          ZPN_KMMAC,    ZPN_KMMACu,
-          ZPN_KMMSB,    ZPN_KMMSBu: cycle_count_o = 2'b11;
+          ZPN_KMMAC,    ZPN_KMMSB: cycle_count_o = 2'b11;
 
           // 1 cycle ops
           default: cycle_count_o = 2'b00;
@@ -129,13 +115,9 @@
           ZPN_KMXDA,  ZPN_KMAXDS, 
           ZPN_KMSXDA,
           // Implicitly crossed ops
-          ZPN_SMBT16,
-          ZPN_KHMBT,    ZPN_KDMBT,      // BT ops want Ah0*Bh1
-          ZPN_KDMABT,   ZPN_KMABT,
-          ZPN_KMMAWT,   ZPN_KMMAWTu,    // T ops want A*Bh1
-          ZPN_KMMAWT2,  ZPN_KMMAWT2u,
-          ZPN_SMMWT,    ZPN_SMMWTu,
-          ZPN_KMMWT2,   ZPN_KMMWT2u:  crossed_o = 1'b1;
+          ZPN_SMBT16, ZPN_KHMBT,
+          ZPN_KMABT,  ZPN_KMMAWT,
+          ZPN_SMMWT:  crossed_o = 1'b1;
 
           default: crossed_o = 1'b0;
         endcase
@@ -151,8 +133,7 @@
     unique case(alu_operator_i)
       ZPN_INSTR: begin
         unique case(zpn_operator_i)
-          ZPN_KMMAC,    ZPN_KMMACu,
-          ZPN_KMMSB,    ZPN_KMMSBu,
+          ZPN_KMMAC,    ZPN_KMMSB,    
           ZPN_MADDR32,  ZPN_MSUBR32: accum_o = 1'b1;
 
           default: accum_o = 1'b0;

@@ -204,8 +204,8 @@
           7'b111_0010: zpn_operator_o = ZPN_SCLIP32;
           7'b111_1010: zpn_operator_o = ZPN_UCLIP32;
 
-          7'b111_1110: zpn_operator_o = ZPN_PBSAD;
-          7'b111_1111: zpn_operator_o = ZPN_PBSADA;
+          //7'b111_1110: zpn_operator_o = ZPN_PBSAD;
+          //7'b111_1111: zpn_operator_o = ZPN_PBSADA;
 
           default: ;
         endcase
@@ -253,34 +253,34 @@
 
           // Multiplication
           // 32x32 multiplication
-          7'b010_0000: zpn_operator_o = ZPN_SMMUL;
-          7'b010_1000: zpn_operator_o = ZPN_SMMULu;
+          //7'b010_0000: zpn_operator_o = ZPN_SMMUL;
+          //7'b010_1000: zpn_operator_o = ZPN_SMMULu;
           7'b011_0000: zpn_operator_o = ZPN_KMMAC;
-          7'b011_1000: zpn_operator_o = ZPN_KMMACu;
+          //7'b011_1000: zpn_operator_o = ZPN_KMMACu;
           7'b010_0001: zpn_operator_o = ZPN_KMMSB;
-          7'b010_1001: zpn_operator_o = ZPN_KMMSBu;
-          7'b011_0001: zpn_operator_o = ZPN_KWMMUL;
-          7'b011_1001: zpn_operator_o = ZPN_KWMMULu;
+          //7'b010_1001: zpn_operator_o = ZPN_KMMSBu;
+          //7'b011_0001: zpn_operator_o = ZPN_KWMMUL;
+          //7'b011_1001: zpn_operator_o = ZPN_KWMMULu;
           7'b110_0010: zpn_operator_o = ZPN_MADDR32;
           7'b110_0011: zpn_operator_o = ZPN_MSUBR32;
 
           // 32x16 multiplication
           7'b010_0010: zpn_operator_o = ZPN_SMMWB;
-          7'b010_1010: zpn_operator_o = ZPN_SMMWBu;
+          //7'b010_1010: zpn_operator_o = ZPN_SMMWBu;
           7'b011_0010: zpn_operator_o = ZPN_SMMWT;
-          7'b011_1010: zpn_operator_o = ZPN_SMMWTu;
+          //7'b011_1010: zpn_operator_o = ZPN_SMMWTu;
           7'b010_0011: zpn_operator_o = ZPN_KMMAWB;
-          7'b010_1011: zpn_operator_o = ZPN_KMMAWBu;
+          //7'b010_1011: zpn_operator_o = ZPN_KMMAWBu;
           7'b011_0011: zpn_operator_o = ZPN_KMMAWT;
-          7'b011_1011: zpn_operator_o = ZPN_KMMAWTu;
-          7'b100_0111: zpn_operator_o = ZPN_KMMWB2;
-          7'b100_1111: zpn_operator_o = ZPN_KMMWB2u;
-          7'b101_0111: zpn_operator_o = ZPN_KMMWT2;
-          7'b101_1111: zpn_operator_o = ZPN_KMMWT2u;
-          7'b110_0111: zpn_operator_o = ZPN_KMMAWB2;
-          7'b110_1111: zpn_operator_o = ZPN_KMMAWB2u;
-          7'b111_0111: zpn_operator_o = ZPN_KMMAWT2;
-          7'b111_1111: zpn_operator_o = ZPN_KMMAWT2u;
+          //7'b011_1011: zpn_operator_o = ZPN_KMMAWTu;
+          //7'b100_0111: zpn_operator_o = ZPN_KMMWB2;
+          //7'b100_1111: zpn_operator_o = ZPN_KMMWB2u;
+          //7'b101_0111: zpn_operator_o = ZPN_KMMWT2;
+          //7'b101_1111: zpn_operator_o = ZPN_KMMWT2u;
+          //7'b110_0111: zpn_operator_o = ZPN_KMMAWB2;
+          //7'b110_1111: zpn_operator_o = ZPN_KMMAWB2u;
+          //7'b111_0111: zpn_operator_o = ZPN_KMMAWT2;
+          //7'b111_1111: zpn_operator_o = ZPN_KMMAWT2u;
 
           // 16x16 multiplication
           7'b000_0100: zpn_operator_o = ZPN_SMBB16;
@@ -301,12 +301,12 @@
           7'b011_0110: zpn_operator_o = ZPN_KMADRS;
           7'b011_1110: zpn_operator_o = ZPN_KMAXDS;
           7'b010_0111: zpn_operator_o = ZPN_KMSXDA;
-          7'b110_1001: zpn_operator_o = ZPN_KDMABB;
-          7'b111_0001: zpn_operator_o = ZPN_KDMABT;
-          7'b111_1001: zpn_operator_o = ZPN_KDMATT;
-          7'b000_0101: zpn_operator_o = ZPN_KDMBB;
-          7'b000_1101: zpn_operator_o = ZPN_KDMBT;
-          7'b001_0101: zpn_operator_o = ZPN_KDMTT;
+          //7'b110_1001: zpn_operator_o = ZPN_KDMABB;
+          //7'b111_0001: zpn_operator_o = ZPN_KDMABT;
+          //7'b111_1001: zpn_operator_o = ZPN_KDMATT;
+          //7'b000_0101: zpn_operator_o = ZPN_KDMBB;
+          //7'b000_1101: zpn_operator_o = ZPN_KDMBT;
+          //7'b001_0101: zpn_operator_o = ZPN_KDMTT;
           7'b000_0110: zpn_operator_o = ZPN_KHMBB;
           7'b000_1110: zpn_operator_o = ZPN_KHMBT;
           7'b001_0110: zpn_operator_o = ZPN_KHMTT;
@@ -346,33 +346,27 @@
   always_comb begin
     unique case (zpn_operator_o)
       // 16x16      // 32x16      // 8x8        // 32x32                   
-      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_SMMUL,
-      ZPN_SMBT16,   ZPN_SMMWBu,   ZPN_UMAQA,    ZPN_SMMULu,
+      ZPN_SMBB16,   ZPN_SMMWB,    ZPN_SMAQA,    ZPN_MADDR32,
+      ZPN_SMBT16,   ZPN_KMMAWB,   ZPN_UMAQA,    ZPN_MSUBR32,
       ZPN_SMTT16,   ZPN_SMMWT,    ZPN_SMAQAsu,  ZPN_KMMAC,
-      ZPN_KMDA,     ZPN_SMMWTu,   ZPN_KHM8,     ZPN_KMMACu,
-      ZPN_KMXDA,    ZPN_KWMMUL,   ZPN_KHMX8,    ZPN_KMMSB,
-      ZPN_SMDS,     ZPN_KWMMULu,                ZPN_KMMSBu,
-      ZPN_SMDRS,    ZPN_KMMWB2,                 ZPN_MADDR32,
-      ZPN_SMXDS,    ZPN_KMMWB2u,                ZPN_MSUBR32,
-      ZPN_KMABB,    ZPN_KMMWT2,
-      ZPN_KMABT,    ZPN_KMMWT2u,
-      ZPN_KMATT,    ZPN_KMMAWB,
-      ZPN_KMADA,    ZPN_KMMAWBu,
-      ZPN_KMAXDA,   ZPN_KMMAWT,
-      ZPN_KMADS,    ZPN_KMMAWTu,
-      ZPN_KMADRS,   ZPN_KMMAWB2,
-      ZPN_KMAXDS,   ZPN_KMMAWB2u,
-      ZPN_KMSDA,    ZPN_KMMAWT2,
-      ZPN_KMSXDA,   ZPN_KMMAWT2u,
+      ZPN_KMDA,     ZPN_KMMAWT,   ZPN_KHM8,     ZPN_KMMSB,
+      ZPN_KMXDA,    ZPN_KWMMUL,   ZPN_KHMX8,   
+      ZPN_SMDS,                     
+      ZPN_SMDRS,                   
+      ZPN_SMXDS,                    
+      ZPN_KMABB,    
+      ZPN_KMABT,    
+      ZPN_KMATT,
+      ZPN_KMADA,    
+      ZPN_KMAXDA,
+      ZPN_KMADS,    
+      ZPN_KMADRS,   
+      ZPN_KMAXDS,   
+      ZPN_KMSDA,    
+      ZPN_KMSXDA,   
       ZPN_KHMBB,
       ZPN_KHMBT,
       ZPN_KHMTT,
-      ZPN_KDMBB,
-      ZPN_KDMBT,
-      ZPN_KDMTT,
-      ZPN_KDMABB,
-      ZPN_KDMABT,
-      ZPN_KDMATT,
       ZPN_KHM16,
       ZPN_KHMX16: zpn_mult_sel_o = 1'b1;
 
