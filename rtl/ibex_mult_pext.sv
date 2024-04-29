@@ -359,12 +359,12 @@ module ibex_mult_pext (
           ZPN_KWMMUL,   ZPN_KWMMULu: mult_result = {mult_sum_32x32W[30:0], imd_val_q_i[0][15] ^ (rounding_32x32 & imd_val_q_i[0][14])};
 
           // All other mult ops are finished in ALU
-          default: mult_result = mult_sum_32x32W[31:0];
+          default: mult_result = '0;
         endcase
       end
 
       default: begin
-        mult_result = '0;
+        mult_result = mult_sum_32x32W[31:0];
       end
     endcase
   end
