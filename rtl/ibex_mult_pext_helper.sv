@@ -15,8 +15,7 @@
   output logic[1:0]                       cycle_count_o,
   output logic[1:0]                       accum_sub_o,       // [sub in 32x32, sub in 32x16]
   output logic                            dsum_mult_o,
-  output logic                            crossed_o,
-  output logic                            accum_o
+  output logic                            crossed_o
 );
   import ibex_pkg_pext::*;
   import ibex_pkg::*;
@@ -66,7 +65,11 @@
           ZPN_KWMMUL, ZPN_KWMMULu: cycle_count_o = 2'b01;
 
           // 1+1 cycle ops
-          ZPN_MADDR32,  ZPN_MSUBR32: cycle_count_o = 2'b10;
+          ZPN_MADDR32,  ZPN_MSUBR32,
+          ZPN_KMMAWB,   ZPN_KMMAWBu,
+          ZPN_KMMAWT,   ZPN_KMMAWTu,
+          ZPN_KMMAWB2,  ZPN_KMMAWB2u,
+          ZPN_KMMAWT2,  ZPN_KMMAWT2u: cycle_count_o = 2'b10;
 
           // 2+1 cycle ops
           ZPN_KMMAC,    ZPN_KMMACu,
@@ -144,39 +147,5 @@
       default: crossed_o = 1'b0;
     endcase
   end
-
-  // Decode ops that use ALU for accumulation
-  // Accumulating ops are ops that are defined as rd = rd + result
-  always_comb begin
-    unique case(alu_operator_i)
-      ZPN_INSTR: begin
-        unique case(zpn_operator_i)
-          ZPN_KMMAC,    ZPN_KMMACu,
-          ZPN_KMMSB,    ZPN_KMMSBu,
-          ZPN_MADDR32,  ZPN_MSUBR32: accum_o = 1'b1;
-
-          default: accum_o = 1'b0;
-        endcase
-      end
-
-      default: accum_o = 1'b0;
-    endcase
-  end
-
-  // Decode ops that double the multiplication result before accumulation
-  /*always_comb begin
-    unique case(alu_operator_i)
-      ZPN_INSTR: begin
-        unique case (zpn_operator_i)
-          ZPN_KMMWB2
-          
-          default: doubling_o = 1'b0;
-        endcase
-      end
-
-      default: doubling_o = 1'b0;
-    endcase
-  end
-*/
 
 endmodule

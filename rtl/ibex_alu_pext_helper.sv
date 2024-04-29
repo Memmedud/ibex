@@ -19,7 +19,6 @@ module ibex_alu_pext_helper (
   output logic                    comp_signed_o,
   output logic[1:0]               alu_sub_o,
   output logic                    crossed_o,
-  output logic                    adder_sat_o,
   output logic                    rounding_o,
   output logic                    shift_o
 );
@@ -315,25 +314,6 @@ module ibex_alu_pext_helper (
       end
 
       default: crossed_o = 1'b0;
-    endcase
-  end
-
-
-  // Decode which ops use saturation
-  always_comb begin
-    unique case(alu_operator_i)
-      ZPN_INSTR: begin
-        unique case(zpn_operator_i)
-          ZPN_KSLLW,    ZPN_KSLL16,   ZPN_KSLL8,
-          ZPN_KSLLIW,   ZPN_SLL16,    ZPN_SLL8,
-          ZPN_KSLRAW,   ZPN_KSLRA16,  ZPN_KSLRA8,
-          ZPN_KSLRAWu,  ZPN_KSLRA16u, ZPN_KSLRA8u: adder_sat_o = 1'b0;
-
-          default: adder_sat_o = 1'b1;
-        endcase
-      end
-
-      default: adder_sat_o = 1'b0;
     endcase
   end
 

@@ -59,7 +59,7 @@
   ////////////////////
   logic[1:0] sub;
   logic zpn_instr, imm_instr, width32, width8, signed_ops, 
-        comp_signed, crossed, adder_sat, rounding, shift;
+        comp_signed, crossed, rounding, shift;
   
   ibex_alu_pext_helper alu_pext_helper (
     .zpn_operator_i     (zpn_operator_i),
@@ -73,7 +73,6 @@
     .comp_signed_o      (comp_signed),
     .alu_sub_o          (sub),
     .crossed_o          (crossed),
-    .adder_sat_o        (adder_sat),
     .rounding_o         (rounding),
     .shift_o            (shift)
   );
@@ -420,6 +419,8 @@
   // Generate shift and rounding mask
   logic[3:0]  shift_signed_bytes;
   logic[31:0] shift_mask_base, shift_mask, shift_mask_signed, rounding_mask_base;
+  logic       unused_rounding_mask_base;
+
   always_comb begin
     for (int unsigned i = 0; i < 32; i++) begin
       if (i < shift_amt) begin
@@ -436,6 +437,8 @@
         rounding_mask_base[i] = 1'b0;
       end
     end
+
+    unused_rounding_mask_base = rounding_mask_base[0];
 
     unique case ({width32, width8})
       2'b10  : shift_mask = shift_mask_base;
